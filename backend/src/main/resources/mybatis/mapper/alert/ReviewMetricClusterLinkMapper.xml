@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.ReviewMetricClusterLinkMapper"><select id="countBreaches" resultType="double">SELECT COUNT(DISTINCT feedback_source_id) FROM t_cluster_link WHERE relation_role='CANDIDATE' AND review_status='PENDING' AND is_active=1 AND review_due_at IS NOT NULL AND review_due_at&lt;#{at}</select></mapper>

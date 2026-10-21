@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.core.CoreFeedbackContentMapper">
+  <sql id="columns">source_id,title,description,function_module,problem_type,feedback_tags,usage_stage,severity_level,
+    issue_category,user_sentiment,reproducibility,mapping_error,mapping_rule_version,normalization_version,
+    processing_status,masking_status,data_quality_score,quality_rule_version,is_deleted,created_by,updated_by,created_at,updated_at</sql>
+  <select id="findById" resultType="com.feedback.model.feedback.FeedbackContent">SELECT <include refid="columns"/>
+    FROM t_feedback_content WHERE source_id=#{id}</select>
+  <select id="findByIds" resultType="com.feedback.model.feedback.FeedbackContent">SELECT <include refid="columns"/>
+    FROM t_feedback_content WHERE source_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    ORDER BY source_id</select>
+  <insert id="upsert">INSERT INTO t_feedback_content(<include refid="columns"/>) VALUES(#{row.sourceId},#{row.title},
+    #{row.description},#{row.functionModule},#{row.problemType},CAST(#{row.feedbackTags} AS JSON),#{row.usageStage},
+    #{row.severityLevel},#{row.issueCategory},#{row.userSentiment},#{row.reproducibility},#{row.mappingError},
+    #{row.mappingRuleVersion},#{row.normalizationVersion},#{row.processingStatus},#{row.maskingStatus},
+    #{row.dataQualityScore},#{row.qualityRuleVersion},#{row.isDeleted},#{row.createdBy},#{row.updatedBy},
+    #{row.createdAt},#{row.updatedAt}) ON DUPLICATE KEY UPDATE title=VALUES(title),description=VALUES(description),
+    function_module=VALUES(function_module),problem_type=VALUES(problem_type),feedback_tags=VALUES(feedback_tags),
+    usage_stage=VALUES(usage_stage),severity_level=VALUES(severity_level),issue_category=VALUES(issue_category),
+    user_sentiment=VALUES(user_sentiment),reproducibility=VALUES(reproducibility),mapping_error=VALUES(mapping_error),
+    mapping_rule_version=VALUES(mapping_rule_version),normalization_version=VALUES(normalization_version),
+    processing_status=VALUES(processing_status),masking_status=VALUES(masking_status),data_quality_score=VALUES(data_quality_score),
+    quality_rule_version=VALUES(quality_rule_version),is_deleted=VALUES(is_deleted),updated_by=VALUES(updated_by),
+    updated_at=VALUES(updated_at)</insert>
+  <select id="findByMaskingStatus" resultType="com.feedback.model.feedback.FeedbackContent">SELECT <include refid="columns"/>
+    FROM t_feedback_content WHERE masking_status=#{status} ORDER BY source_id</select>
+  <select id="findByProcessingStatus" resultType="com.feedback.model.feedback.FeedbackContent">SELECT <include refid="columns"/>
+    FROM t_feedback_content WHERE processing_status=#{status} ORDER BY source_id</select>
+</mapper>

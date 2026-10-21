@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.scheduler.MaintenanceImportAttachmentTaskMapper">
+    <update id="clearFinishedOrExpiredUrls">
+        UPDATE t_import_attachment_task
+        SET source_url_ciphertext = NULL,
+            source_url_nonce = NULL,
+            source_url_tag = NULL,
+            source_url_key_id = NULL,
+            source_url_algorithm = NULL
+        WHERE (url_expires_at &lt; NOW(3) OR final_status IN ('AVAILABLE', 'FAILED'))
+          AND source_url_ciphertext IS NOT NULL
+    </update>
+</mapper>

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterShadowCandidateMemberMapper">
+  <insert id="insertAll">
+    INSERT INTO t_cluster_shadow_candidate_member(generation_id,feedback_source_id,problem_status,
+      cluster_key_hash,decision_code,score,manual_locked,application_hash,failure_mode_hash,target_hash,
+      action_hash,error_signature_hash) VALUES
+    <foreach collection="rows" item="row" separator=",">
+      (#{row.generationId},#{row.feedbackSourceId},#{row.problemStatus},#{row.clusterKeyHash},#{row.decisionCode},
+       #{row.score},#{row.manualLocked},#{row.applicationHash},#{row.failureModeHash},#{row.targetHash},
+       #{row.actionHash},#{row.errorSignatureHash})
+    </foreach>
+  </insert>
+  <select id="findByGeneration" resultType="com.feedback.model.po.cluster.ClusterShadowCandidateMemberPo">
+    SELECT generation_id,feedback_source_id,problem_status,cluster_key_hash,decision_code,score,manual_locked,
+      application_hash,failure_mode_hash,target_hash,action_hash,error_signature_hash
+    FROM t_cluster_shadow_candidate_member WHERE generation_id=#{generationId} ORDER BY feedback_source_id
+  </select>
+</mapper>

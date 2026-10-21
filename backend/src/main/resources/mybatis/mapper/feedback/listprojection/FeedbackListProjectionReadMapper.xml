@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListProjectionReadMapper">
+    <sql id="columns">
+        generation_id,source_id,source_channel,source_record_id,app_version,package_name,province_code,city_code,
+        import_batch_id,import_batch_code,jira_import_batch_codes,title,description,function_module,problem_type,
+        issue_category,severity_level,ai_severity,ai_review_status,user_sentiment,reproducibility,processing_status,
+        distribution_status,owner_user_id,handoff_pending,fault_occurred_at,source_event_time,reported_at,
+        fault_time_precision,fault_time_source,fault_time_resolution,source_update_time,platform_update_time,ingest_time,
+        attachment_count,screenshot_count,log_count,video_count,channel_app_id,channel_package_name,channel_device_model,
+        channel_os_version,channel_network_type,jira_key,jira_issue_type,jira_status,jira_priority,jira_project_key,
+        jira_assignee,jira_resolution,jira_resolved_at,quality_repair_region,quality_application_type,
+        quality_exchange_request,redblack_source_platform,redblack_keyword,redblack_list_type,station_product_id,
+        station_app_id,station_source_platform,station_source_sub_channel,station_api_version,channel_meta_json,
+        diagnostic_types
+    </sql>
+
+    <sql id="filters">
+        generation_id=#{generationId}
+        AND source_channel IN
+        <foreach collection="criteria.allowedChannels" item="value" open="(" separator="," close=")">#{value}</foreach>
+        <if test="criteria.scopeModules != null">
+            AND COALESCE(NULLIF(function_module,''),'UNKNOWN') IN
+            <foreach collection="criteria.scopeModules" item="value" open="(" separator="," close=")">#{value}</foreach>
+        </if>
+        <if test="criteria.scopeRegions != null">
+            AND (province_code IN
+            <foreach collection="criteria.scopeRegions" item="value" open="(" separator="," close=")">#{value}</foreach>
+            OR city_code IN
+            <foreach collection="criteria.scopeRegions" item="value" open="(" separator="," close=")">#{value}</foreach>)
+        </if>
+        <if test="criteria.channels != null">
+            AND source_channel IN
+            <foreach collection="criteria.channels" item="value" open="(" separator="," close=")">#{value}</foreach>
+        </if>
+        <if test="criteria.keywordPattern != null">
+            AND (source_record_id LIKE #{criteria.keywordPattern} ESCAPE '=' OR title LIKE #{criteria.keywordPattern} ESCAPE '='
+                 OR description LIKE #{criteria.keywordPattern} ESCAPE '=')
+        </if>
+        <if test="criteria.severities != null">
+            AND COALESCE(severity_level,ai_severity,'UNKNOWN') IN
+            <foreach collection="criteria.severities" item="value" open="(" separator="," close=")">#{value}</foreach>
+        </if>
+        <if test="criteria.statuses != null">
+            AND processing_status IN
+            <foreach collection="criteria.statuses" item="value" open="(" separator="," close=")">#{value}</foreach>
+        </if>
+        <if test="criteria.modules != null">
+            AND COALESCE(NULLIF(function_module,''),'UNKNOWN') IN
+            <foreach collection="criteria.modules" item="value" open="(" separator="," close=")">#{value}</foreach>
+        </if>
+        <if test="criteria.problemTypes != null">
+            AND COALESCE(NULLIF(issue_category,''),'UNKNOWN') IN
+            <foreach collection="criteria.problemTypes" item="value" open="(" separator="," close=")">#{value}</foreach>
+        </if>
+        <if test="criteria.reproducibilities != null">
+            AND COALESCE(NULLIF(reproducibility,''),'UNKNOWN') IN
+            <foreach collection="criteria.reproducibilities" item="value" open="(" separator="," close=")">#{value}</foreach>
+        </if>
+        <if test="criteria.aiReviewStatus != null">AND ai_review_status=#{criteria.aiReviewStatus}</if>
+        <if test="criteria.province != null">AND COALESCE(NULLIF(province_code,''),'UNKNOWN')=#{criteria.province}</if>
+        <if test="criteria.city != null">AND COALESCE(NULLIF(city_code,''),'UNKNOWN')=#{criteria.city}</if>
+        <if test="criteria.ownerId != null">AND owner_user_id=#{criteria.ownerId}</if>
+        <if test="criteria.unassigned">AND owner_user_id IS NULL</if>
+        <if test="criteria.handoffPending">AND handoff_pending=TRUE</if>
+        <if test="criteria.startTime != null">AND reported_at&gt;=#{criteria.startTime}</if>
+        <if test="criteria.endTime != null">AND reported_at&lt;=#{criteria.endTime}</if>
+        <if test="criteria.appId != null">AND COALESCE(channel_app_id,station_app_id)=#{criteria.appId}</if>
+        <if test="criteria.packageName != null">AND COALESCE(package_name,channel_package_name)=#{criteria.packageName}</if>
+        <if test="criteria.deviceModelPattern != null">AND channel_device_model LIKE #{criteria.deviceModelPattern} ESCAPE '='</if>
+        <if test="criteria.osVersionPattern != null">AND channel_os_version LIKE #{criteria.osVersionPattern} ESCAPE '='</if>
+        <if test="criteria.networkType != null">AND channel_network_type=#{criteria.networkType}</if>
+        <if test="criteria.appVersion != null">AND app_version=#{criteria.appVersion}</if>
+        <if test="criteria.projectKey != null">AND jira_project_key=#{criteria.projectKey}</if>
+        <if test="criteria.issueKey != null">AND jira_key=#{criteria.issueKey}</if>
+        <if test="criteria.issueType != null">AND jira_issue_type=#{criteria.issueType}</if>
+        <if test="criteria.priority != null">AND jira_priority=#{criteria.priority}</if>
+        <if test="criteria.assignee != null">AND jira_assignee=#{criteria.assignee}</if>
+        <if test="criteria.resolution != null">AND jira_resolution=#{criteria.resolution}</if>
+        <if test="criteria.repairRegionPattern != null">AND quality_repair_region LIKE #{criteria.repairRegionPattern} ESCAPE '='</if>
+        <if test="criteria.applicationType != null">AND quality_application_type=#{criteria.applicationType}</if>
+        <if test="criteria.exchangeRequest != null">AND quality_exchange_request=#{criteria.exchangeRequest}</if>
+        <if test="criteria.importBatchCode != null">
+            AND (import_batch_code=#{criteria.importBatchCode}
+                 OR JSON_CONTAINS(jira_import_batch_codes,JSON_QUOTE(#{criteria.importBatchCode})))
+        </if>
+        <if test="criteria.sourcePlatform != null">
+            AND COALESCE(redblack_source_platform,station_source_platform)=#{criteria.sourcePlatform}
+        </if>
+        <if test="criteria.emotionType != null">AND user_sentiment=#{criteria.emotionType}</if>
+        <if test="criteria.channelKeyword != null">AND redblack_keyword=#{criteria.channelKeyword}</if>
+        <if test="criteria.listType != null">AND redblack_list_type=#{criteria.listType}</if>
+        <if test="criteria.productId != null">AND station_product_id=#{criteria.productId}</if>
+        <if test="criteria.sourceSubChannel != null">AND station_source_sub_channel=#{criteria.sourceSubChannel}</if>
+        <if test="criteria.apiVersion != null">AND station_api_version=#{criteria.apiVersion}</if>
+        <if test="criteria.versionCompleteness == 'MISSING'">
+            AND (COALESCE(package_name,channel_package_name) IS NULL OR NULLIF(app_version,'') IS NULL)
+        </if>
+        <if test="criteria.versionCompleteness == 'COMPLETE'">
+            AND (COALESCE(package_name,channel_package_name) IS NOT NULL AND NULLIF(app_version,'') IS NOT NULL)
+        </if>
+        <if test="criteria.sourceResolutionState == 'RESOLVED'">
+            AND (jira_resolved_at IS NOT NULL OR UPPER(COALESCE(jira_status,'')) IN ('RESOLVED','CLOSED','DONE'))
+        </if>
+        <if test="criteria.sourceResolutionState == 'UNRESOLVED'">
+            AND NOT (jira_resolved_at IS NOT NULL OR UPPER(COALESCE(jira_status,'')) IN ('RESOLVED','CLOSED','DONE'))
+        </if>
+    </sql>
+
+    <sql id="orderBy">
+        ORDER BY
+        <choose>
+            <when test="criteria.sortBy == 'sourceUpdatedAt'">source_update_time</when>
+            <when test="criteria.sortBy == 'platformUpdatedAt'">platform_update_time</when>
+            <when test="criteria.sortBy == 'severity'">COALESCE(severity_level,ai_severity)</when>
+            <when test="criteria.sortBy == 'status'">processing_status</when>
+            <when test="criteria.sortBy == 'title'">title</when>
+            <otherwise>reported_at</otherwise>
+        </choose>
+        <choose><when test="criteria.sortDirection == 'asc'">ASC</when><otherwise>DESC</otherwise></choose>,
+        source_id <choose><when test="criteria.sortDirection == 'asc'">ASC</when><otherwise>DESC</otherwise></choose>
+    </sql>
+
+    <select id="findPage" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListProjectionPo">
+        SELECT <include refid="columns"/>
+        FROM t_phase_one_feedback_list_projection
+        WHERE <include refid="filters"/>
+        <include refid="orderBy"/>
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="findForExport" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListProjectionPo">
+        SELECT <include refid="columns"/>
+        FROM t_phase_one_feedback_list_projection
+        WHERE <include refid="filters"/>
+        <include refid="orderBy"/>
+        LIMIT #{limit}
+    </select>
+
+    <select id="findByIds" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListProjectionPo">
+        SELECT <include refid="columns"/>
+        FROM t_phase_one_feedback_list_projection
+        WHERE <include refid="filters"/>
+          AND source_id IN
+          <foreach collection="sourceIds" item="value" open="(" separator="," close=")">#{value}</foreach>
+        ORDER BY source_id
+    </select>
+
+    <select id="stats" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListStatsPo">
+        SELECT COUNT(*) total,MAX(reported_at) latest_time,MAX(source_update_time) latest_update_time,
+               MAX(ingest_time) latest_ingest_time,COUNT(DISTINCT source_channel) channel_count,
+               COALESCE(SUM(owner_user_id IS NULL),0) unassigned_count,
+               COALESCE(SUM(processing_status IN ('NEW','DISTRIBUTED','PROCESSING','SUSPENDED')),0) active_count,
+               COALESCE(SUM(processing_status IN ('RESOLVED','CLOSED')),0) resolved_count,
+               COALESCE(SUM(attachment_count&gt;0),0) with_evidence_count,
+               COALESCE(SUM(user_sentiment='POSITIVE'),0) positive_count,
+               COALESCE(SUM(user_sentiment='NEGATIVE'),0) negative_count,
+               COALESCE(SUM(source_channel='SDK' AND ingest_time&gt;=CURRENT_TIMESTAMP(3)-INTERVAL 5 MINUTE),0) new_records5m
+        FROM t_phase_one_feedback_list_projection
+        WHERE <include refid="filters"/>
+    </select>
+</mapper>
+

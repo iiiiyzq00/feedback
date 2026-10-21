@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.jira.owner.JiraOwnerActiveUserMapper">
+    <select id="resolveDisplayNameKeys" resultType="com.feedback.model.po.jira.owner.JiraOwnerDisplayNameKeyPo">
+        SELECT names.display_name,
+               HEX(WEIGHT_STRING(
+                   CAST(names.display_name AS CHAR CHARACTER SET utf8mb4) COLLATE utf8mb4_0900_ai_ci
+               )) AS match_key
+        FROM JSON_TABLE(
+            #{displayNamesJson},
+            '$[*]' COLUMNS(display_name VARCHAR(255) PATH '$')
+        ) AS names
+        ORDER BY names.display_name
+    </select>
+    <select id="findActiveByMatchKeys" resultType="com.feedback.model.po.jira.owner.JiraOwnerActiveUserPo">
+        SELECT id,
+               display_name,
+               HEX(WEIGHT_STRING(display_name COLLATE utf8mb4_0900_ai_ci)) AS match_key
+        FROM t_auth_user
+        WHERE is_active=1
+          AND HEX(WEIGHT_STRING(display_name COLLATE utf8mb4_0900_ai_ci)) IN
+        <foreach collection="matchKeys" item="matchKey" open="(" separator="," close=")">#{matchKey}</foreach>
+        ORDER BY match_key,id
+        LIMIT #{candidateLimit}
+        FOR UPDATE
+    </select>
+</mapper>

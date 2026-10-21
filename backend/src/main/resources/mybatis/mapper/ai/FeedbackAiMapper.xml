@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.ai.FeedbackAiMapper">
+  <sql id="columns">source_id,ai_summary,ai_application,ai_function_module,ai_category,ai_sentiment,ai_risk_type,
+    ai_severity,ai_confidence,ai_explanation,recommended_team,evidence_codes,data_sources,ai_processed_at,
+    ai_model_version,classification_prompt_version,classification_model_version,classification_taxonomy_version,
+    review_status,review_comment,text_fingerprint,milvus_vector_id,vector_index_status,search_document_id,
+    search_index_status,embedding_model_version,embedding_dimension,embedding_generated_at,created_at,updated_at</sql>
+  <select id="findById" resultType="com.feedback.model.feedback.FeedbackAi">SELECT <include refid="columns"/>
+    FROM t_feedback_ai WHERE source_id=#{sourceId}</select>
+  <insert id="upsert">INSERT INTO t_feedback_ai(<include refid="columns"/>) VALUES(
+    #{row.sourceId},#{row.aiSummary},#{row.aiApplication},#{row.aiFunctionModule},#{row.aiCategory},#{row.aiSentiment},
+    #{row.aiRiskType},#{row.aiSeverity},#{row.aiConfidence},#{row.aiExplanation},#{row.recommendedTeam},#{row.evidenceCodes},
+    CAST(#{row.dataSources} AS JSON),#{row.aiProcessedAt},#{row.aiModelVersion},#{row.classificationPromptVersion},
+    #{row.classificationModelVersion},#{row.classificationTaxonomyVersion},#{row.reviewStatus},#{row.reviewComment},
+    #{row.textFingerprint},#{row.milvusVectorId},#{row.vectorIndexStatus},#{row.searchDocumentId},#{row.searchIndexStatus},
+    #{row.embeddingModelVersion},#{row.embeddingDimension},#{row.embeddingGeneratedAt},#{row.createdAt},#{row.updatedAt})
+    ON DUPLICATE KEY UPDATE ai_summary=VALUES(ai_summary),ai_application=VALUES(ai_application),
+    ai_function_module=VALUES(ai_function_module),ai_category=VALUES(ai_category),ai_sentiment=VALUES(ai_sentiment),
+    ai_risk_type=VALUES(ai_risk_type),ai_severity=VALUES(ai_severity),ai_confidence=VALUES(ai_confidence),
+    ai_explanation=VALUES(ai_explanation),recommended_team=VALUES(recommended_team),evidence_codes=VALUES(evidence_codes),
+    data_sources=VALUES(data_sources),ai_processed_at=VALUES(ai_processed_at),ai_model_version=VALUES(ai_model_version),
+    classification_prompt_version=VALUES(classification_prompt_version),classification_model_version=VALUES(classification_model_version),
+    classification_taxonomy_version=VALUES(classification_taxonomy_version),review_status=VALUES(review_status),
+    review_comment=VALUES(review_comment),text_fingerprint=VALUES(text_fingerprint),milvus_vector_id=VALUES(milvus_vector_id),
+    vector_index_status=VALUES(vector_index_status),search_document_id=VALUES(search_document_id),
+    search_index_status=VALUES(search_index_status),embedding_model_version=VALUES(embedding_model_version),
+    embedding_dimension=VALUES(embedding_dimension),embedding_generated_at=VALUES(embedding_generated_at),updated_at=VALUES(updated_at)</insert>
+  <select id="findTopBySearchStatus" resultType="com.feedback.model.feedback.FeedbackAi">SELECT <include refid="columns"/>
+    FROM t_feedback_ai WHERE search_index_status=#{status} ORDER BY updated_at LIMIT #{limit}</select>
+  <select id="findTopByVectorStatus" resultType="com.feedback.model.feedback.FeedbackAi">SELECT <include refid="columns"/>
+    FROM t_feedback_ai WHERE vector_index_status=#{status} ORDER BY updated_at LIMIT #{limit}</select>
+</mapper>

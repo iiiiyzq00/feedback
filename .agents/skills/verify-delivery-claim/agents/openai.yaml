@@ -1,0 +1,4 @@
+interface:
+  display_name: "验证交付结论"
+  short_description: "校准本机、Mock、降级、集成与生产交付证据和结论"
+  default_prompt: "Use $verify-delivery-claim to verify the evidence and state the strongest defensible delivery claim."

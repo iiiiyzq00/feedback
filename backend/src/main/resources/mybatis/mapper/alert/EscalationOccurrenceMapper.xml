@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.EscalationOccurrenceMapper"><select id="latest" resultType="com.feedback.model.po.alert.EscalationOccurrencePo">SELECT JSON_UNQUOTE(JSON_EXTRACT(evaluation_snapshot,'$.value')) current_value FROM t_alert_occurrence WHERE instance_id=#{instance} ORDER BY id DESC LIMIT 1</select></mapper>

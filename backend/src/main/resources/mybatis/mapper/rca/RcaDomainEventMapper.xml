@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  领域事件日志的读写。
+
+  三条贯穿全文件的约定：
+
+  1. **时间一律取 SQL 的 NOW(3)，不由 Kotlin 侧传入**。与 RcaTaskLeaseMapper.xml 同一条
+     纪律：事件与任务行上的 updated_at 必须由**同一个时钟**裁定，否则「事件发生在状态迁移的
+     哪一侧」这个问题会因为两个时钟的偏移而无法回答——而本机没有 NTP 约束，
+     JVM 与 MySQL 的墙钟差可以远大于事件之间的真实间隔。
+     必须同时说清这样做的**限度**：同一个事务里的两条语句是两个 NOW(3) 读数，
+     所以两者可比、但同一毫秒内的事件与迁移谁先谁后无法据此判定（那由语句执行顺序决定）。
+     换 JVM 时钟不会改善这一点，只会再叠加一层时钟偏移。
+  2. **JSON 列由调用方拼好再传入**，SQL 里不做字符串拼接：本文件不出现美元花括号占位符
+     （取值一律走 #{} 预处理参数，受 MyBatisBindingGateTest 的白名单约束）。
+  3. **只写不改不删**：除了 markPublished 之外没有任何 UPDATE / DELETE 语句，
+     这是刻意的——事件日志是取证材料，能被改写就不再是证据。
+
+  一处**刻意不取**的列：`payload`。listByTask / listUnpublished 的产物分别是
+  「排障时看迁移序列」与「中继取待投递事件」，载荷的长度不可控（它是 JSON 列），
+  带进每一次列表读会让取一批 100 条待投递事件顺带把它们的全文拉进内存。
+  中继确实需要载荷——它按 **id 单独查一条**（见 selectPayloadById）。
+-->
+<mapper namespace="com.feedback.mapper.rca.RcaDomainEventMapper">
+
+  <!--
+    落一条事件。
+
+    INSERT IGNORE 而不是 ON DUPLICATE KEY UPDATE：撞键只有一种原因——event_id 相同，
+    而 event_id 由内容确定性推导，所以「同键」与「同一次事实」是同一件事。
+    用 ON DUPLICATE KEY UPDATE 会得到一个更糟的结果：它把重放那一次的时间戳
+    盖到原始记录上，于是「这件事什么时候发生的」变成了「最后一次重放是什么时候」，
+    而后者恰恰是排障时不关心的那个。
+
+    occurred_at 显式写成 NOW(3) 而不是省掉让列默认值兜底：两者的值一样，
+    但省掉之后「这一列由数据库时钟决定」这件事就从语句里消失了，
+    下一个改这条语句的人会以为可以在这里塞一个入参。
+  -->
+  <insert id="insertIgnore">
+    INSERT IGNORE INTO t_rca_domain_event(
+      event_id, aggregate_type, aggregate_id, aggregate_version, event_type,
+      task_id, episode_id, trace_id, occurred_at, payload
+    ) VALUES (
+      #{eventId}, #{aggregateType}, #{aggregateId}, #{aggregateVersion}, #{eventType},
+      #{taskId}, #{episodeId}, #{traceId}, NOW(3), CAST(#{payloadJson} AS JSON)
+    )
+  </insert>
+
+  <!--
+    一次任务的全部事件。排序键是 (aggregate_version, id) 而不是只用 occurred_at：
+    同一版本上可以有多条事件（TASK_CLAIMED 不递增版本），此时只有自增 id 能定序；
+    而 occurred_at 在同一事务内可能完全相同（同一个 NOW(3) 读数），拿它排序没有意义。
+  -->
+  <select id="listByTask" resultType="com.feedback.model.po.rca.RcaDomainEventPo">
+    SELECT id, event_id, aggregate_type, aggregate_id, aggregate_version, event_type,
+      task_id, episode_id, trace_id, occurred_at, published_at
+    FROM t_rca_domain_event
+    WHERE task_id = #{taskId}
+    ORDER BY aggregate_version ASC, id ASC
+  </select>
+
+  <!--
+    待投递事件。published_at IS NULL 走 idx_rca_domain_event_publish 的前缀，
+    ORDER BY id 保证中继按写入顺序发送（同一聚合的事件顺序在接收侧因此天然成立）。
+
+    这里不限制 task_id、不过滤事件类型：中继的职责是「把库里没发出去的都发出去」，
+    按业务维度挑挑拣拣会让它在某类事件上静默停摆，而停摆不会有任何报错。
+  -->
+  <select id="listUnpublished" resultType="com.feedback.model.po.rca.RcaDomainEventPo">
+    SELECT id, event_id, aggregate_type, aggregate_id, aggregate_version, event_type,
+      task_id, episode_id, trace_id, occurred_at, published_at
+    FROM t_rca_domain_event
+    WHERE published_at IS NULL
+    ORDER BY id ASC
+    LIMIT #{limit}
+  </select>
+
+  <!--
+    中继按 id 单独取载荷。与列表读分开是刻意的：载荷只在真要发出去的那一刻才需要，
+    而「取一批」与「取全文」放在同一条语句里，会让每次轮询都为一批可能永远不会被
+    消费的 JSON 付内存代价。
+  -->
+  <select id="selectPayloadById" resultType="java.lang.String">
+    SELECT CAST(payload AS CHAR) FROM t_rca_domain_event WHERE id = #{id}
+  </select>
+
+  <!--
+    标记已投递。条件里的 published_at IS NULL 让本语句幂等，且**不覆盖首次投递时刻**：
+    那个时刻是对账「积压了多久」的起点，被第二次调用改掉之后，
+    一次重发会把一条早已发出去的事件记成刚发出去。
+
+    这里**不**让中继传一个「本次批量投递时刻」进来：那样会引入一个不由数据库时钟产生的
+    时间值，而它和 occurred_at 会被放在一起做「积压了多久」的减法——两个时钟相减得到的
+    数字没有意义。逐条 NOW(3) 的代价是同一批投递的时间戳彼此差几毫秒，
+    这对「积压了多久」这个问题的精度毫无影响。
+  -->
+  <update id="markPublished">
+    UPDATE t_rca_domain_event
+    SET published_at = NOW(3)
+    WHERE id = #{id} AND published_at IS NULL
+  </update>
+
+  <!--
+    投递失败时记一次尝试。**不改 published_at**：这一列是「已经投递出去了」，
+    一次失败不能让它变成非空，否则中继会永久跳过一条从未送达的事件——
+    那正是发件箱模式要消灭的静默丢失。
+
+    条件里的 published_at IS NULL 与 markPublished 同源：一条事件如果在本轮里
+    先被标记成功、又以失败收尾（不可能同时发生，但语句不该依赖调用方的顺序），
+    计数不该落在一个已经发出去的行上。
+
+    publish_attempts **不是**控制流输入：没有任何语句按它筛选或跳过。
+    它只回答问题「这条卡了多久、卡了几次」；把它变成「超过 N 次就不再重试」的开关，
+    就等于用静默放弃换取队列前进，而放弃的那条不会有任何人收到通知。
+    代价是队首阻塞：一条永远发不出去的事件会一直被 listUnpublished 取到**并且**
+    占掉一个批量名额——批量上限因此要明显大于「正常情况下一次能发完的量」。
+  -->
+  <update id="recordPublishFailure">
+    UPDATE t_rca_domain_event
+    SET publish_attempts = publish_attempts + 1
+    WHERE id = #{id} AND published_at IS NULL
+  </update>
+</mapper>

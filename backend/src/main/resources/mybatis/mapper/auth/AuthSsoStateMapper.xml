@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthSsoStateMapper">
+  <!-- 只保存 state 摘要，并把返回路径与本次实际 redirect_uri 绑定到同一有效期。 -->
+  <insert id="insert">
+    INSERT INTO t_auth_sso_state (
+      state_hash,
+      provider,
+      return_path,
+      redirect_uri,
+      expires_at
+    ) VALUES (
+      #{stateHash},
+      'FEISHU',
+      #{returnPath},
+      #{redirectUri},
+      DATE_ADD(NOW(3), INTERVAL #{ttlSeconds} SECOND)
+    )
+  </insert>
+
+  <!-- 远程换票前只做无锁有效性检查，不能让数据库事务跨越飞书 HTTP 调用。 -->
+  <select id="findUsable" resultType="com.feedback.model.po.auth.AuthSsoStateReadPo">
+    SELECT
+      return_path,
+      redirect_uri
+    FROM t_auth_sso_state
+    WHERE state_hash = #{stateHash}
+      AND provider = 'FEISHU'
+      AND consumed_at IS NULL
+      AND expires_at &gt; NOW(3)
+  </select>
+
+  <!-- FOR UPDATE 与条件 consume 组成一次性消费协议，阻止并发回调重复换取登录短码。 -->
+  <select id="lockUsable" resultType="com.feedback.model.po.auth.AuthSsoStateReadPo">
+    SELECT
+      return_path,
+      redirect_uri
+    FROM t_auth_sso_state
+    WHERE state_hash = #{stateHash}
+      AND provider = 'FEISHU'
+      AND consumed_at IS NULL
+      AND expires_at &gt; NOW(3)
+    FOR UPDATE
+  </select>
+
+  <update id="consume">
+    UPDATE t_auth_sso_state
+    SET consumed_at = NOW(3)
+    WHERE state_hash = #{stateHash}
+      AND consumed_at IS NULL
+  </update>
+</mapper>

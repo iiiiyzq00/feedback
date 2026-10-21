@@ -1,0 +1,74 @@
+name: feedback-backend
+
+# 单容器编排：backend 用宿主机网络，直接复用 127.0.0.1 上已就绪的
+# MySQL 3307 / Redis 6379 / ES 9200 / RocketMQ 9876 等中间件。
+# 镜像内 glibc 2.35，能加载 DJL tokenizers native → 恢复 BGE-M3 真向量。
+
+services:
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    image: feedback-platform-backend:dev
+    container_name: feedback-platform-backend
+    network_mode: host
+    environment:
+      # ---- 数据库（宿主机 Docker 里的 fp-v242-migrate）----
+      DB_URL: jdbc:mysql://127.0.0.1:3307/feedback_platform_local_deploy?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+
+      # ---- 启动期强校验的密钥（长度 ≥32）----
+      MASKING_FINGERPRINT_SECRET: ${MASKING_FINGERPRINT_SECRET}
+      CONTACT_STORAGE_SECRET: ${CONTACT_STORAGE_SECRET}
+      IMPORT_RAW_STORAGE_SECRET: ${IMPORT_RAW_STORAGE_SECRET}
+      STATION_RAW_STORAGE_SECRET: ${IMPORT_RAW_STORAGE_SECRET}
+      COURSE_SDK_SECRET: ${COURSE_SDK_SECRET}
+      QUESTION_BANK_SDK_SECRET: ${QUESTION_BANK_SDK_SECRET}
+      WRONG_BOOK_SDK_SECRET: ${WRONG_BOOK_SDK_SECRET}
+      AI_TUTOR_SDK_SECRET: ${AI_TUTOR_SDK_SECRET}
+      APP_STORE_SDK_SECRET: ${APP_STORE_SDK_SECRET}
+      HEALTH_DEMO_SDK_SECRET: ${HEALTH_DEMO_SDK_SECRET}
+      CHILD_ART_DEMO_SDK_SECRET: ${CHILD_ART_DEMO_SDK_SECRET}
+      UNIVERSAL_FEEDBACK_SDK_SECRET: ${UNIVERSAL_FEEDBACK_SDK_SECRET}
+
+      # ---- 本地放宽：口令（LOCAL）主体持有工作区权限即可见渠道数据/问题深度分析 ----
+      # 生产语义下工作区只对飞书 SSO 主体开放；本机没有真实飞书租户，必须放开
+      # 「来源必须是 SSO」这一条（app.security.local-workspace.enabled），权限本身仍要显式具备。
+      APP_SECURITY_LOCAL_WORKSPACE_ENABLED: "true"
+
+      # ---- 工作区数据开关：列表/分析投影默认失败关闭，本地栈显式开启 ----
+      PHASE_ONE_LIST_PROJECTION_READ_ENABLED: "true"
+      PHASE_ONE_PROBLEM_ANALYSIS_PROJECTION_READ_ENABLED: "true"
+
+      # ---- 首次启动的本地管理员（AdminBootstrap 幂等创建，密码 ≥12 位）----
+      AUTH_BOOTSTRAP_USERNAME: ${AUTH_BOOTSTRAP_USERNAME}
+      AUTH_BOOTSTRAP_PASSWORD: ${AUTH_BOOTSTRAP_PASSWORD}
+
+      # ---- 恢复 BGE-M3（容器 glibc 2.35，可加载 DJL native）----
+      EMBEDDING_PROVIDER: onnx-bge-m3
+      BGE_M3_PATH: /models/bge-m3
+
+      # ---- 本机最小启动：关掉非必需外部依赖 ----
+      FEEDBACK_RPC_ENABLED: "false"
+      MILVUS_ENABLED: "false"
+      MQ_ENABLED: "false"
+      XXL_JOB_ENABLED: "false"
+
+      # ---- RCA 主模型声明（模型已端口化，经 OPENAI_MODEL 注入）----
+      # 此处只声明型号。真实联调还需注入 OPENAI_API_KEY；缺失时 AI 返回
+      # LLM_NOT_CONFIGURED，确定性链路照常工作。生产经 env-file/KMS 注入，不进仓库。
+      OPENAI_MODEL: gpt-5.4
+
+    volumes:
+      # BGE-M3 模型（宿主机已下载，只读挂载，不进镜像）
+      - ${HOME}/.local/models/bge-m3:/models/bge-m3:ro
+      # DJL tokenizers native 库缓存（容器内下载一次后复用）
+      - feedback-djl-cache:/root/.djl.ai
+      # PDF 报告的中文字体回退路径（ReportPdfService.resolveFont 在容器里找不到字体时启动失败）
+      - /usr/share/fonts:/usr/share/fonts:ro
+
+    restart: unless-stopped
+
+volumes:
+  feedback-djl-cache:

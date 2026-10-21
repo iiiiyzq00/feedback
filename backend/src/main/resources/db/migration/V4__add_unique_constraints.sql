@@ -1,0 +1,36 @@
+-- Unique constraints. Run duplicate-data prechecks before applying to an upgraded database.
+
+ALTER TABLE t_feedback_source ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_feedback_source ADD UNIQUE KEY uk_source_channel_record (source_channel, source_record_id);
+ALTER TABLE t_feedback_attachment ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_feedback_attachment ADD UNIQUE KEY uk_ingest_client_attachment (sdk_ingest_id, client_attachment_id);
+ALTER TABLE t_feedback_identity ADD UNIQUE KEY uk_source_identity (source_id, identity_type, identity_scope);
+ALTER TABLE t_channel_sdk ADD UNIQUE KEY uk_app_client_feedback (app_id, client_feedback_id);
+ALTER TABLE t_channel_jira ADD UNIQUE KEY uk_jira_instance_key (jira_base_url_hash, jira_key);
+ALTER TABLE t_sdk_ingest ADD UNIQUE KEY uk_receipt_id (receipt_id);
+ALTER TABLE t_sdk_ingest ADD UNIQUE KEY uk_app_client_feedback (app_id, client_feedback_id);
+ALTER TABLE t_sdk_ingest ADD UNIQUE KEY uk_feedback_source (feedback_source_id);
+ALTER TABLE t_import_template ADD UNIQUE KEY uk_template_version (source_channel, template_name, version);
+ALTER TABLE t_import_template ADD UNIQUE KEY uk_active_template (active_key);
+ALTER TABLE t_import_batch ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_import_batch ADD UNIQUE KEY uk_batch_id (batch_id);
+ALTER TABLE t_import_batch ADD UNIQUE KEY uk_content_hash_channel (source_channel, content_sha256);
+ALTER TABLE t_cluster ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_cluster_link ADD UNIQUE KEY uk_active_feedback (active_feedback_source_id);
+ALTER TABLE t_ai_task ADD UNIQUE KEY uk_current_prompt (current_prompt_key);
+ALTER TABLE t_ai_report ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_ai_knowledge ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_root_cause_analysis ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_cluster_root_cause ADD UNIQUE KEY uk_cluster_rca (cluster_id, rca_id);
+ALTER TABLE t_alert_rule ADD UNIQUE KEY uk_rule_code_version (rule_code, version);
+ALTER TABLE t_alert_rule ADD UNIQUE KEY uk_active_rule (active_rule_key);
+ALTER TABLE t_incident ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_incident_alert_link ADD UNIQUE KEY uk_incident_instance (incident_id, alert_instance_id);
+ALTER TABLE t_auth_user ADD UNIQUE KEY uk_public_id (public_id);
+ALTER TABLE t_auth_user ADD UNIQUE KEY uk_username (username);
+ALTER TABLE t_auth_user ADD UNIQUE KEY uk_email_hash (email_hash);
+ALTER TABLE t_auth_role ADD UNIQUE KEY uk_role_code (role_code);
+ALTER TABLE t_auth_data_permission ADD UNIQUE KEY uk_subject_scope (subject_type, subject_id, scope_type, scope_value, access_level);
+ALTER TABLE t_system_config ADD UNIQUE KEY uk_config_version (config_key, config_version);
+ALTER TABLE t_system_config ADD UNIQUE KEY uk_active_config (active_config_key);
+ALTER TABLE t_team_member ADD UNIQUE KEY uk_team_user (team_name, user_id);

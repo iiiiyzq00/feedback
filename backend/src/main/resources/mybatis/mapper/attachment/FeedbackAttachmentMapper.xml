@@ -1,0 +1,561 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.attachment.FeedbackAttachmentMapper">
+    <sql id="mutationColumns">
+        id,
+        public_id,
+        source_id,
+        sdk_ingest_id,
+        attachment_type,
+        mime_type,
+        file_size_bytes,
+        file_sha256,
+        storage_path,
+        storage_key_id,
+        client_attachment_id,
+        source_attachment_id,
+        width,
+        height,
+        duration_seconds,
+        annotation_data,
+        upload_status,
+        integrity_status,
+        decryption_status,
+        malware_scan_status,
+        content_review_status,
+        security_retry_count,
+        security_next_retry_at,
+        security_last_error_code,
+        security_processed_at,
+        security_status,
+        source_kind,
+        retention_until
+    </sql>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_feedback_attachment (
+            public_id,
+            source_id,
+            sdk_ingest_id,
+            attachment_type,
+            mime_type,
+            file_size_bytes,
+            file_sha256,
+            storage_path,
+            storage_key_id,
+            client_attachment_id,
+            source_attachment_id,
+            width,
+            height,
+            duration_seconds,
+            annotation_data,
+            upload_status,
+            integrity_status,
+            decryption_status,
+            malware_scan_status,
+            content_review_status,
+            security_retry_count,
+            security_next_retry_at,
+            security_last_error_code,
+            security_processed_at,
+            security_status,
+            source_kind,
+            retention_until
+        ) VALUES (
+            #{publicId},
+            #{sourceId},
+            #{sdkIngestId},
+            #{attachmentType},
+            #{mimeType},
+            #{fileSizeBytes},
+            #{fileSha256},
+            #{storagePath},
+            #{storageKeyId},
+            #{clientAttachmentId},
+            #{sourceAttachmentId},
+            #{width},
+            #{height},
+            #{durationSeconds},
+            CAST(#{annotationDataJson} AS JSON),
+            #{uploadStatus},
+            #{integrityStatus},
+            #{decryptionStatus},
+            #{malwareScanStatus},
+            #{contentReviewStatus},
+            #{securityRetryCount},
+            #{securityNextRetryAt},
+            #{securityLastErrorCode},
+            #{securityProcessedAt},
+            #{securityStatus},
+            #{sourceKind},
+            #{retentionUntil}
+        )
+    </insert>
+    <update id="updateStored">
+        UPDATE t_feedback_attachment
+        SET mime_type = #{mimeType},
+            file_size_bytes = #{fileSizeBytes},
+            file_sha256 = #{fileSha256},
+            storage_path = #{storagePath},
+            storage_key_id = #{storageKeyId},
+            upload_status = #{uploadStatus},
+            integrity_status = #{integrityStatus},
+            decryption_status = #{decryptionStatus},
+            security_status = #{securityStatus}
+        WHERE id = #{id}
+    </update>
+    <select id="findById" resultType="com.feedback.model.po.attachment.FeedbackAttachmentPo">
+        SELECT
+            <include refid="mutationColumns"/>
+        FROM t_feedback_attachment
+        WHERE id = #{id}
+    </select>
+    <select id="findBySourceKindAndSourceAttachmentId" resultType="com.feedback.model.po.attachment.FeedbackAttachmentPo">
+        SELECT
+            <include refid="mutationColumns"/>
+        FROM t_feedback_attachment
+        WHERE source_kind = #{sourceKind}
+          AND source_attachment_id = #{sourceAttachmentId}
+        LIMIT 1
+    </select>
+    <select id="findBySourceHashKind" resultType="com.feedback.model.po.attachment.FeedbackAttachmentPo">
+        SELECT
+            <include refid="mutationColumns"/>
+        FROM t_feedback_attachment
+        WHERE source_id = #{sourceId}
+          AND file_sha256 = #{fileSha256}
+          AND source_kind = #{sourceKind}
+        LIMIT 1
+    </select>
+    <update id="linkToSource">
+        UPDATE t_feedback_attachment
+        SET source_id = #{sourceId}
+        WHERE sdk_ingest_id = #{sdkIngestId}
+    </update>
+    <sql id="attachmentSecurityColumns">
+        id, source_id, sdk_ingest_id, attachment_type, mime_type, file_size_bytes, storage_path,
+        storage_backend, object_bucket, object_key, object_version, object_etag,
+        object_storage_status, object_migrated_at,
+        security_status, integrity_status, decryption_status, malware_scan_status,
+        content_review_status, log_preview_ciphertext, log_preview_key_id,
+        log_preview_plaintext_bytes, log_preview_status, log_preview_error_code,
+        media_preview_status, media_preview_object_key, media_preview_object_version,
+        media_preview_object_etag, media_preview_bytes, media_preview_width, media_preview_height,
+        media_preview_attempts, media_preview_next_retry_at, media_preview_error_code,
+        deleted_at, retention_until
+    </sql>
+
+    <!--
+      列表只向上层传递“内容是否存在”，不传递存储路径。数据库时间与附件行同语句返回，
+      使保留期判断不混用 JVM 与 MySQL 时钟；真实内容访问仍必须重新执行安全授权。
+    -->
+    <select id="findNonLogListBySourceId" resultType="com.feedback.model.po.attachment.FeedbackAttachmentListPo">
+        SELECT id, source_id, attachment_type, mime_type, file_size_bytes,
+               width, height, duration_seconds, upload_status, security_status,
+               integrity_status, decryption_status, malware_scan_status,
+               content_review_status, source_kind, retention_until, created_at,
+               deleted_at, (storage_path IS NOT NULL OR object_storage_status = 'AVAILABLE') AS stored_content_present,
+               media_preview_status,
+               CURRENT_TIMESTAMP(3) AS query_time
+        FROM t_feedback_attachment
+        WHERE source_id = #{sourceId}
+          AND attachment_type &lt;&gt; 'LOG'
+        ORDER BY created_at, id
+    </select>
+
+    <!-- 列表证据区需要日志附件 ID 以按需加载文本缩略内容，但仍不返回存储路径或正文。 -->
+    <select id="findListBySourceId" resultType="com.feedback.model.po.attachment.FeedbackAttachmentListPo">
+        SELECT id, source_id, attachment_type, mime_type, file_size_bytes,
+               width, height, duration_seconds, upload_status, security_status,
+               integrity_status, decryption_status, malware_scan_status,
+               content_review_status, source_kind, retention_until, created_at,
+               deleted_at, (storage_path IS NOT NULL OR object_storage_status = 'AVAILABLE') AS stored_content_present,
+               media_preview_status,
+               CURRENT_TIMESTAMP(3) AS query_time
+        FROM t_feedback_attachment
+        WHERE source_id = #{sourceId}
+        ORDER BY created_at, id
+    </select>
+
+    <select id="countActiveLogsBySourceId" resultType="long">
+        SELECT COUNT(*)
+        FROM t_feedback_attachment
+        WHERE source_id = #{sourceId}
+          AND attachment_type = 'LOG'
+          AND deleted_at IS NULL
+    </select>
+
+    <select id="findRetainedByIdAndSourceId" resultType="com.feedback.model.po.attachment.FeedbackAttachmentPo">
+        SELECT
+            <include refid="attachmentSecurityColumns" />
+        FROM t_feedback_attachment
+        WHERE id = #{attachmentId}
+          AND source_id = #{sourceId}
+          AND (retention_until IS NULL OR retention_until &gt; CURRENT_TIMESTAMP(3))
+    </select>
+
+    <select id="findRetainedByIdsAndSourceId" resultType="com.feedback.model.po.attachment.FeedbackAttachmentPo">
+        SELECT
+            <include refid="attachmentSecurityColumns" />
+        FROM t_feedback_attachment
+        WHERE source_id = #{sourceId}
+          AND id IN
+        <foreach collection="attachmentIds" item="attachmentId" open="(" separator="," close=")">
+            #{attachmentId}
+        </foreach>
+          AND (retention_until IS NULL OR retention_until &gt; CURRENT_TIMESTAMP(3))
+    </select>
+
+    <select id="findViewableContentById" resultType="com.feedback.model.po.attachment.FeedbackAttachmentPo">
+        SELECT <include refid="attachmentSecurityColumns" />
+        FROM t_feedback_attachment
+        WHERE id = #{attachmentId}
+          AND deleted_at IS NULL
+          AND (storage_path IS NOT NULL OR object_storage_status = 'AVAILABLE')
+          AND security_status = 'VERIFIED'
+          AND integrity_status = 'VERIFIED'
+          AND decryption_status IN ('NOT_REQUIRED', 'DECRYPTED')
+          AND malware_scan_status = 'CLEAN'
+          AND content_review_status = 'PASS'
+          AND (retention_until IS NULL OR retention_until &gt; CURRENT_TIMESTAMP(3))
+    </select>
+
+    <select id="findRegisteredStoragePaths" resultType="string">
+        SELECT storage_path
+        FROM t_feedback_attachment
+        WHERE storage_path IN
+        <foreach collection="storagePaths" item="storagePath" open="(" separator="," close=")">
+            #{storagePath}
+        </foreach>
+    </select>
+
+    <!-- 私有对象位置事实；AVAILABLE 行由内容提供器只读对象存储，未迁移行继续使用 storage_path。 -->
+    <select id="findObjectStorageLocationById" resultType="com.feedback.model.po.attachment.FeedbackAttachmentPo">
+        SELECT <include refid="attachmentSecurityColumns" />
+        FROM t_feedback_attachment
+        WHERE id = #{attachmentId}
+          AND storage_backend = 'S3_COMPATIBLE'
+    </select>
+
+    <sql id="objectMigrationCandidateColumns">
+        id, source_kind, storage_path, mime_type, file_size_bytes, file_sha256, object_storage_status
+    </sql>
+
+    <select id="findObjectMigrationCandidate" resultType="com.feedback.model.po.attachment.AttachmentObjectMigrationCandidatePo">
+        SELECT <include refid="objectMigrationCandidateColumns" />
+        FROM t_feedback_attachment
+        WHERE id = #{attachmentId}
+          AND storage_path IS NOT NULL
+          AND file_size_bytes IS NOT NULL
+          AND file_sha256 IS NOT NULL
+          AND security_status = 'VERIFIED'
+          AND integrity_status = 'VERIFIED'
+          AND decryption_status IN ('NOT_REQUIRED', 'DECRYPTED')
+          AND malware_scan_status = 'CLEAN'
+          AND content_review_status = 'PASS'
+          AND deleted_at IS NULL
+          AND (security_last_error_code IS NULL
+               OR security_last_error_code &lt;&gt; 'ATTACHMENT_LOCAL_SOURCE_UNAVAILABLE')
+          AND (object_storage_status IS NULL OR object_storage_status &lt;&gt; 'AVAILABLE')
+    </select>
+
+    <select id="findObjectMigrationCandidates" resultType="com.feedback.model.po.attachment.AttachmentObjectMigrationCandidatePo">
+        SELECT <include refid="objectMigrationCandidateColumns" />
+        FROM t_feedback_attachment
+        WHERE id &gt; #{afterId}
+          AND storage_path IS NOT NULL
+          AND file_size_bytes IS NOT NULL
+          AND file_sha256 IS NOT NULL
+          AND security_status = 'VERIFIED'
+          AND integrity_status = 'VERIFIED'
+          AND decryption_status IN ('NOT_REQUIRED', 'DECRYPTED')
+          AND malware_scan_status = 'CLEAN'
+          AND content_review_status = 'PASS'
+          AND deleted_at IS NULL
+          AND (security_last_error_code IS NULL
+               OR security_last_error_code &lt;&gt; 'ATTACHMENT_LOCAL_SOURCE_UNAVAILABLE')
+          AND (object_storage_status IS NULL OR object_storage_status &lt;&gt; 'AVAILABLE')
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <select id="countObjectMigrationSourceUnavailable" resultType="long">
+        SELECT COUNT(*)
+        FROM t_feedback_attachment
+        WHERE security_last_error_code = 'ATTACHMENT_LOCAL_SOURCE_UNAVAILABLE'
+          AND object_storage_status IS NULL
+    </select>
+
+    <!-- 单行 CAS 保证网络上传位于事务外，并使失败重试和并发 worker 保持幂等。 -->
+    <update id="markObjectAvailable">
+        UPDATE t_feedback_attachment
+        SET storage_backend = #{storageBackend},
+            object_bucket = #{bucket},
+            object_key = #{objectKey},
+            object_version = #{objectVersion},
+            object_etag = #{objectEtag},
+            object_storage_status = 'AVAILABLE',
+            object_migrated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{attachmentId}
+          AND storage_path = #{expectedStoragePath}
+          AND (object_storage_status IS NULL OR object_storage_status &lt;&gt; 'AVAILABLE')
+    </update>
+
+    <!--
+      只登记源文件迁移失败原因，不伪造对象位置或 AVAILABLE。调用方已确认路径在白名单根内且文件缺失。
+    -->
+    <update id="markObjectMigrationSourceUnavailable">
+        UPDATE t_feedback_attachment
+        SET security_last_error_code = 'ATTACHMENT_LOCAL_SOURCE_UNAVAILABLE'
+        WHERE id = #{attachmentId}
+          AND storage_path = #{expectedStoragePath}
+          AND file_size_bytes = #{fileSizeBytes}
+          AND file_sha256 = #{fileSha256}
+          AND security_status = 'VERIFIED'
+          AND integrity_status = 'VERIFIED'
+          AND decryption_status IN ('NOT_REQUIRED', 'DECRYPTED')
+          AND malware_scan_status = 'CLEAN'
+          AND content_review_status = 'PASS'
+          AND deleted_at IS NULL
+          AND (object_storage_status IS NULL OR object_storage_status &lt;&gt; 'AVAILABLE')
+          AND (security_last_error_code IS NULL
+               OR security_last_error_code &lt;&gt; 'ATTACHMENT_LOCAL_SOURCE_UNAVAILABLE')
+    </update>
+
+    <sql id="objectCleanupCandidateColumns">
+        id, storage_path, file_size_bytes, file_sha256, object_bucket, object_key,
+        object_version, object_etag, object_storage_status
+    </sql>
+
+    <select id="findObjectCleanupCandidate" resultType="com.feedback.model.po.attachment.AttachmentObjectCleanupCandidatePo">
+        SELECT <include refid="objectCleanupCandidateColumns" />
+        FROM t_feedback_attachment
+        WHERE id = #{attachmentId}
+          AND object_storage_status = 'AVAILABLE'
+          AND storage_path IS NOT NULL
+          AND file_size_bytes IS NOT NULL
+          AND file_sha256 IS NOT NULL
+          AND object_bucket IS NOT NULL
+          AND object_key IS NOT NULL
+          AND deleted_at IS NULL
+    </select>
+
+    <select id="findObjectCleanupCandidates" resultType="com.feedback.model.po.attachment.AttachmentObjectCleanupCandidatePo">
+        SELECT <include refid="objectCleanupCandidateColumns" />
+        FROM t_feedback_attachment
+        WHERE object_storage_status = 'AVAILABLE'
+          AND storage_path IS NOT NULL
+          AND file_size_bytes IS NOT NULL
+          AND file_sha256 IS NOT NULL
+          AND object_bucket IS NOT NULL
+          AND object_key IS NOT NULL
+          AND deleted_at IS NULL
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+
+    <!-- 仅在重新核对对象长度、哈希、版本及本行 AVAILABLE 状态后调用。 -->
+    <update id="clearVerifiedLocalCopy">
+        UPDATE t_feedback_attachment
+        SET storage_path = NULL, storage_key_id = NULL
+        WHERE id = #{attachmentId}
+          AND storage_path = #{expectedStoragePath}
+          AND object_storage_status = 'AVAILABLE'
+          AND object_bucket = #{bucket}
+          AND object_key = #{objectKey}
+          AND object_version &lt;=&gt; #{objectVersion}
+          AND file_sha256 = #{fileSha256}
+    </update>
+
+    <select id="findAttachmentType" resultType="string">
+        SELECT attachment_type
+        FROM t_feedback_attachment
+        WHERE id = #{attachmentId}
+          AND source_id = #{sourceId}
+    </select>
+    <select id="findPendingSecurityScan" resultType="com.feedback.model.po.attachment.AttachmentScanCandidatePo">
+        SELECT id,
+               storage_path,
+               mime_type,
+               attachment_type,
+               source_attachment_id
+        FROM t_feedback_attachment
+        WHERE security_status = 'QUARANTINED'
+          AND upload_status = 'VERIFIED'
+          AND integrity_status = 'VERIFIED'
+          AND decryption_status IN ('NOT_REQUIRED', 'DECRYPTED')
+          AND deleted_at IS NULL
+          AND storage_path IS NOT NULL
+          AND (security_next_retry_at IS NULL OR security_next_retry_at &lt;= CURRENT_TIMESTAMP(3))
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+    <update id="markSecurityVerified">
+        UPDATE t_feedback_attachment
+        SET malware_scan_status='CLEAN', content_review_status='PASS', storage_path=#{path},
+            storage_key_id=#{keyId}, security_status='VERIFIED',
+            security_processed_at=CURRENT_TIMESTAMP(3), security_next_retry_at=NULL,
+            log_preview_ciphertext=#{logPreviewCiphertext},
+            log_preview_key_id=CASE WHEN #{logPreviewCiphertext} IS NULL THEN NULL ELSE #{keyId} END,
+            log_preview_plaintext_bytes=#{logPreviewPlaintextBytes},
+            log_preview_status=CASE
+                WHEN attachment_type&lt;&gt;'LOG' THEN NULL
+                WHEN #{logPreviewCiphertext} IS NULL THEN 'PENDING'
+                ELSE 'AVAILABLE'
+            END,
+            log_preview_error_code=NULL,
+            media_preview_status=CASE
+                WHEN attachment_type IN ('IMAGE','SCREENSHOT','ANNOTATED_SCREENSHOT','VIDEO','SCREEN_RECORDING') THEN 'PENDING'
+                ELSE NULL
+            END,
+            media_preview_priority=CASE
+                WHEN attachment_type IN ('IMAGE','SCREENSHOT','ANNOTATED_SCREENSHOT','VIDEO','SCREEN_RECORDING') THEN 100
+                ELSE 0
+            END,
+            media_preview_next_retry_at=CASE
+                WHEN attachment_type IN ('IMAGE','SCREENSHOT','ANNOTATED_SCREENSHOT','VIDEO','SCREEN_RECORDING') THEN CURRENT_TIMESTAMP(3)
+                ELSE NULL
+            END,
+            media_preview_error_code=NULL
+        WHERE id=#{id} AND security_status='QUARANTINED'
+    </update>
+    <select id="findMissingLogPreviewIds" resultType="long">
+        SELECT id
+        FROM t_feedback_attachment
+        WHERE attachment_type = 'LOG'
+          AND security_status = 'VERIFIED'
+          AND integrity_status = 'VERIFIED'
+          AND malware_scan_status = 'CLEAN'
+          AND content_review_status = 'PASS'
+          AND deleted_at IS NULL
+          AND (log_preview_status IS NULL OR log_preview_status = 'PENDING')
+        ORDER BY file_size_bytes DESC, id DESC
+        LIMIT #{limit}
+    </select>
+    <update id="storeLogPreview">
+        UPDATE t_feedback_attachment
+        SET log_preview_ciphertext=#{ciphertext}, log_preview_key_id=#{keyId},
+            log_preview_plaintext_bytes=#{plaintextBytes}, log_preview_status='AVAILABLE',
+            log_preview_error_code=NULL
+        WHERE id=#{id} AND attachment_type='LOG' AND security_status='VERIFIED'
+          AND (log_preview_status IS NULL OR log_preview_status='PENDING')
+    </update>
+    <update id="markLogPreviewFailed">
+        UPDATE t_feedback_attachment
+        SET log_preview_status='FAILED', log_preview_error_code=#{errorCode}
+        WHERE id=#{id} AND attachment_type='LOG'
+          AND (log_preview_status IS NULL OR log_preview_status='PENDING')
+    </update>
+    <select id="findMediaPreviewCandidates" resultType="com.feedback.model.po.attachment.AttachmentMediaPreviewCandidatePo">
+        SELECT id, attachment_type, mime_type, file_size_bytes, media_preview_attempts AS attempts
+        FROM t_feedback_attachment
+        WHERE attachment_type IN ('IMAGE','SCREENSHOT','ANNOTATED_SCREENSHOT','VIDEO','SCREEN_RECORDING')
+          AND security_status='VERIFIED' AND integrity_status='VERIFIED'
+          AND decryption_status IN ('NOT_REQUIRED','DECRYPTED')
+          AND malware_scan_status='CLEAN' AND content_review_status='PASS'
+          AND deleted_at IS NULL AND media_preview_attempts &lt; 3
+          AND (#{ffmpegEnabled}=TRUE OR
+               (attachment_type NOT IN ('VIDEO','SCREEN_RECORDING') AND COALESCE(mime_type,'')&lt;&gt;'image/webp'))
+          AND ((media_preview_status IN ('PENDING','FAILED') AND
+                (media_preview_next_retry_at IS NULL OR media_preview_next_retry_at &lt;= CURRENT_TIMESTAMP(3)))
+               OR (media_preview_status='PROCESSING' AND media_preview_next_retry_at &lt;= CURRENT_TIMESTAMP(3)))
+        ORDER BY media_preview_priority DESC, media_preview_next_retry_at, id
+        LIMIT #{limit}
+    </select>
+    <update id="claimMediaPreview">
+        UPDATE t_feedback_attachment
+        SET media_preview_status='PROCESSING', media_preview_attempts=media_preview_attempts+1,
+            media_preview_next_retry_at=DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL #{leaseSeconds} SECOND),
+            media_preview_lease_owner=#{leaseOwner}, media_preview_error_code=NULL
+        WHERE id=#{id} AND media_preview_attempts &lt; 3
+          AND ((media_preview_status IN ('PENDING','FAILED') AND
+                (media_preview_next_retry_at IS NULL OR media_preview_next_retry_at &lt;= CURRENT_TIMESTAMP(3)))
+               OR (media_preview_status='PROCESSING' AND media_preview_next_retry_at &lt;= CURRENT_TIMESTAMP(3)))
+    </update>
+    <update id="renewMediaPreviewLease">
+        UPDATE t_feedback_attachment
+        SET media_preview_next_retry_at=DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL #{leaseSeconds} SECOND)
+        WHERE id=#{id} AND media_preview_status='PROCESSING' AND media_preview_lease_owner=#{leaseOwner}
+    </update>
+    <update id="storeMediaPreview">
+        UPDATE t_feedback_attachment
+        SET media_preview_status='AVAILABLE', media_preview_object_key=#{objectKey},
+            media_preview_object_version=#{objectVersion}, media_preview_object_etag=#{objectEtag},
+            media_preview_bytes=#{contentLength}, media_preview_width=#{width}, media_preview_height=#{height},
+            media_preview_next_retry_at=NULL, media_preview_lease_owner=NULL, media_preview_error_code=NULL
+        WHERE id=#{id} AND media_preview_status='PROCESSING' AND media_preview_lease_owner=#{leaseOwner}
+          AND security_status='VERIFIED' AND deleted_at IS NULL
+    </update>
+    <update id="markMediaPreviewFailed">
+        UPDATE t_feedback_attachment
+        SET media_preview_status='FAILED', media_preview_error_code=#{errorCode},
+            media_preview_next_retry_at=CASE WHEN media_preview_attempts &lt; 3
+                THEN DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL POW(4, media_preview_attempts) MINUTE)
+                ELSE NULL END,
+            media_preview_lease_owner=NULL
+        WHERE id=#{id} AND media_preview_status='PROCESSING' AND media_preview_lease_owner=#{leaseOwner}
+    </update>
+    <update id="prioritizeMediaPreviews">
+        UPDATE t_feedback_attachment
+        SET media_preview_priority=100,
+            media_preview_next_retry_at=CASE
+                WHEN media_preview_status IN ('PENDING','FAILED') THEN CURRENT_TIMESTAMP(3)
+                ELSE media_preview_next_retry_at END
+        WHERE source_id=#{sourceId} AND id IN
+        <foreach collection="attachmentIds" item="attachmentId" open="(" separator="," close=")">
+            #{attachmentId}
+        </foreach>
+          AND media_preview_status IN ('PENDING','FAILED','PROCESSING')
+          AND security_status='VERIFIED' AND integrity_status='VERIFIED'
+          AND malware_scan_status='CLEAN' AND content_review_status='PASS' AND deleted_at IS NULL
+    </update>
+    <select id="findMediaPreviewLocation" resultType="com.feedback.model.po.attachment.AttachmentMediaPreviewLocationPo">
+        SELECT id, media_preview_object_key AS object_key, media_preview_object_version AS object_version,
+               media_preview_object_etag AS object_etag, media_preview_bytes AS content_length,
+               media_preview_width AS width, media_preview_height AS height, media_preview_status AS status
+        FROM t_feedback_attachment
+        WHERE id=#{id} AND media_preview_status='AVAILABLE'
+    </select>
+    <update id="markContentUnsupported">
+        UPDATE t_feedback_attachment
+        SET malware_scan_status = 'CLEAN',
+            content_review_status = 'REVIEW_NEEDED',
+            security_status = 'REJECTED',
+            upload_status = 'FAILED',
+            security_last_error_code = 'ATTACHMENT_CONTENT_REVIEW_UNSUPPORTED',
+            security_processed_at = CURRENT_TIMESTAMP(3),
+            security_next_retry_at = NULL
+        WHERE id = #{id}
+          AND security_status = 'QUARANTINED'
+    </update>
+    <update id="markContentRejected">
+        UPDATE t_feedback_attachment
+        SET malware_scan_status = 'CLEAN',
+            content_review_status = 'REJECTED',
+            security_status = 'REJECTED',
+            upload_status = 'FAILED',
+            security_processed_at = CURRENT_TIMESTAMP(3),
+            security_next_retry_at = NULL
+        WHERE id = #{id}
+          AND security_status = 'QUARANTINED'
+    </update>
+    <update id="markMalwareInfected">
+        UPDATE t_feedback_attachment
+        SET malware_scan_status = 'INFECTED',
+            content_review_status = 'REJECTED',
+            security_status = 'REJECTED',
+            upload_status = 'FAILED',
+            security_processed_at = CURRENT_TIMESTAMP(3),
+            security_next_retry_at = NULL
+        WHERE id = #{id}
+          AND security_status = 'QUARANTINED'
+    </update>
+    <update id="markScanUnavailable">
+        UPDATE t_feedback_attachment
+        SET malware_scan_status = 'ERROR',
+            security_retry_count = security_retry_count + 1,
+            security_last_error_code = #{code},
+            security_next_retry_at = DATE_ADD(CURRENT_TIMESTAMP(3), INTERVAL 30 SECOND)
+        WHERE id = #{id}
+          AND security_status = 'QUARANTINED'
+    </update>
+</mapper>

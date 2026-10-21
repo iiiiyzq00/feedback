@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.imports.ImportUploadChunkMapper">
+  <sql id="columns">chunk_index,chunk_sha256,chunk_ciphertext,chunk_nonce,chunk_tag</sql>
+  <select id="findOne" resultType="com.feedback.model.po.imports.ImportUploadChunkPo">SELECT <include refid="columns"/> FROM t_import_upload_chunk WHERE compact_session_id=#{sessionId} AND chunk_index=#{chunkIndex}</select>
+  <select id="findBySession" resultType="com.feedback.model.po.imports.ImportUploadChunkPo">SELECT <include refid="columns"/> FROM t_import_upload_chunk WHERE compact_session_id=#{sessionId} ORDER BY chunk_index</select>
+  <insert id="insert">INSERT INTO t_import_upload_chunk(session_id,compact_session_id,chunk_index,chunk_sha256,chunk_size_bytes,chunk_ciphertext,chunk_nonce,chunk_tag,chunk_key_id) VALUES(#{sessionId},#{sessionId},#{chunkIndex},#{hash},#{size},#{ciphertext},#{nonce},#{tag},#{keyId})</insert>
+  <delete id="deleteBySession">DELETE FROM t_import_upload_chunk WHERE compact_session_id=#{sessionId}</delete>
+</mapper>

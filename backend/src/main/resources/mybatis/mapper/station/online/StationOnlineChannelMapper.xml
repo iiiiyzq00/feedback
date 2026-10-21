@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.station.online.StationOnlineChannelMapper">
+    <sql id="columns">source_id,receipt_id,source_api_version,product_id,source_app_id,source_app_name,source_user_id,
+        authenticated_user_id,authenticated_product_code,source_platform,source_feedback_type,source_sub_channel,
+        source_description,pending_photo_urls,source_phone_ciphertext,contact_status,ingest_status,processing_stage,
+        retry_count,max_retry_count,next_retry_at,lease_owner,lease_expires_at,last_error_code,last_error_summary,
+        request_fingerprint,processed_at,created_at,updated_at</sql>
+    <insert id="insert">
+        INSERT INTO t_channel_station_feedback(source_id,receipt_id,source_api_version,product_id,source_app_id,
+          source_app_name,source_user_id,authenticated_user_id,authenticated_product_code,source_platform,
+          source_feedback_type,source_sub_channel,source_description,pending_photo_urls,source_phone_ciphertext,
+          contact_status,ingest_status,processing_stage,retry_count,max_retry_count,next_retry_at,request_fingerprint,
+          created_at,updated_at)
+        VALUES(#{sourceId},#{receiptId},#{sourceApiVersion},#{productId},#{sourceAppId},#{sourceAppName},#{sourceUserId},
+          #{authenticatedUserId},#{authenticatedProductCode},#{sourcePlatform},#{sourceFeedbackType},#{sourceSubChannel},
+          #{sourceDescription},#{pendingPhotoUrls},#{sourcePhoneCiphertext},#{contactStatus},#{ingestStatus},
+          #{processingStage},#{retryCount},#{maxRetryCount},#{nextRetryAt},#{requestFingerprint},#{createdAt},#{updatedAt})
+    </insert>
+    <select id="findBySourceId" resultType="com.feedback.model.po.station.online.StationOnlineChannelPo">
+        SELECT <include refid="columns"/> FROM t_channel_station_feedback WHERE source_id=#{sourceId}
+    </select>
+    <select id="findBySourceIds" resultType="com.feedback.model.po.station.online.StationOnlineChannelPo">
+        SELECT <include refid="columns"/> FROM t_channel_station_feedback WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">
+            #{sourceId}
+        </foreach>
+    </select>
+    <select id="countOperations" resultType="long">
+        SELECT COUNT(*) FROM t_channel_station_feedback
+        <if test="status != null">WHERE ingest_status=#{status}</if>
+    </select>
+    <select id="findOperationsPage" resultType="com.feedback.model.po.station.online.StationOperationsTaskPo">
+        SELECT source_id,receipt_id,source_api_version api_version,product_id,source_app_id app_id,
+          source_platform platform,source_sub_channel sub_channel,ingest_status status,processing_stage,
+          contact_status,attribute_mapping_status attribute_status,retry_count,max_retry_count,next_retry_at,
+          last_error_code error_code,last_error_summary error_summary,created_at received_at,processed_at,
+          (ingest_status IN ('RETRY_PENDING','REVIEW_NEEDED','FAILED_FINAL')) retryable
+        FROM t_channel_station_feedback
+        <if test="status != null">WHERE ingest_status=#{status}</if>
+        ORDER BY created_at DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="summarizeOperations" resultType="com.feedback.model.po.station.online.StationOperationsStatusCountPo">
+        SELECT ingest_status status,COUNT(*) count FROM t_channel_station_feedback GROUP BY ingest_status
+    </select>
+    <select id="findRetryableByReceiptsForUpdate" resultType="com.feedback.model.po.station.online.StationOnlineChannelPo">
+        SELECT <include refid="columns"/> FROM t_channel_station_feedback
+        WHERE receipt_id IN
+        <foreach collection="receiptIds" item="receiptId" open="(" separator="," close=")">
+            #{receiptId}
+        </foreach>
+        AND ingest_status IN ('RETRY_PENDING','REVIEW_NEEDED','FAILED_FINAL') ORDER BY source_id FOR UPDATE
+    </select>
+    <select id="findClaimableForUpdate" resultType="com.feedback.model.po.station.online.StationOnlineChannelPo">
+        SELECT <include refid="columns"/> FROM t_channel_station_feedback
+        WHERE ingest_status IN ('RECEIVED','RETRY_PENDING','PROCESSING')
+          AND (next_retry_at IS NULL OR next_retry_at&lt;=NOW(3))
+          AND (lease_expires_at IS NULL OR lease_expires_at&lt;NOW(3))
+        ORDER BY source_id LIMIT 1 FOR UPDATE SKIP LOCKED
+    </select>
+    <update id="claim">
+        UPDATE t_channel_station_feedback SET ingest_status='PROCESSING',processing_stage='CONTACT',
+          lease_owner=#{leaseOwner},lease_expires_at=DATE_ADD(NOW(3),INTERVAL 30 SECOND),updated_at=NOW(3)
+        WHERE source_id=#{sourceId} AND ingest_status IN ('RECEIVED','RETRY_PENDING','PROCESSING')
+          AND (lease_expires_at IS NULL OR lease_expires_at&lt;NOW(3))
+    </update>
+    <update id="renewLease">
+        UPDATE t_channel_station_feedback SET lease_expires_at=DATE_ADD(NOW(3),INTERVAL 30 SECOND),updated_at=NOW(3)
+        WHERE source_id=#{sourceId} AND lease_owner=#{leaseOwner} AND ingest_status='PROCESSING'
+    </update>
+    <update id="markContactUnavailable">
+        UPDATE t_channel_station_feedback SET contact_status='NOT_REQUESTED',source_phone_ciphertext=NULL,
+          last_error_code='STATION_CONTACT_SOURCE_INVALID',last_error_summary='来源联系方式不可用，已忽略该字段',updated_at=NOW(3)
+        WHERE source_id=#{sourceId} AND lease_owner=#{leaseOwner} AND ingest_status='PROCESSING'
+    </update>
+    <update id="complete">
+        UPDATE t_channel_station_feedback SET ingest_status=CASE WHEN contact_status='REVIEW_NEEDED' THEN 'REVIEW_NEEDED' ELSE 'COMPLETED' END,
+          processing_stage=CASE WHEN contact_status='REVIEW_NEEDED' THEN 'CONTACT_OR_ATTACHMENT' ELSE 'COMPLETED' END,
+          contact_status=CASE WHEN contact_status IN ('NOT_PROVIDED','NOT_PROCESSED') THEN
+            CASE WHEN #{identityStored}=TRUE THEN 'ENCRYPTED' ELSE 'NOT_PROVIDED' END ELSE contact_status END,
+          source_phone_ciphertext=NULL,pending_photo_urls=NULL,lease_owner=NULL,lease_expires_at=NULL,next_retry_at=NULL,
+          last_error_code=CASE WHEN #{unavailableAttachments}&gt;0 THEN 'STATION_ATTACHMENT_SOURCE_UNAVAILABLE'
+            WHEN contact_status='REVIEW_NEEDED' THEN last_error_code ELSE NULL END,
+          last_error_summary=CASE WHEN #{unavailableAttachments}&gt;0 THEN '来源历史图片已不可访问，未生成分析证据'
+            WHEN contact_status='REVIEW_NEEDED' THEN last_error_summary ELSE NULL END,
+          processed_at=NOW(3),updated_at=NOW(3)
+        WHERE source_id=#{sourceId} AND lease_owner=#{leaseOwner} AND ingest_status='PROCESSING'
+    </update>
+    <update id="fail">
+        UPDATE t_channel_station_feedback SET ingest_status=#{status},processing_stage='CONTACT_OR_ATTACHMENT',
+          contact_status=CASE WHEN #{review}=TRUE THEN 'REVIEW_NEEDED' ELSE contact_status END,retry_count=#{retryCount},
+          next_retry_at=CASE WHEN #{status}='RETRY_PENDING' THEN TIMESTAMPADD(SECOND,#{delaySeconds},NOW(3)) ELSE NULL END,
+          lease_owner=NULL,lease_expires_at=NULL,last_error_code=#{errorCode},last_error_summary=#{errorSummary},updated_at=NOW(3)
+        WHERE source_id=#{sourceId} AND lease_owner=#{leaseOwner} AND ingest_status='PROCESSING'
+    </update>
+    <update id="resetRetryable">
+        UPDATE t_channel_station_feedback SET ingest_status='RECEIVED',processing_stage='RECEIVED',retry_count=0,
+          next_retry_at=NOW(3),lease_owner=NULL,lease_expires_at=NULL,last_error_code=NULL,last_error_summary=NULL,
+          processed_at=NULL,contact_status=CASE WHEN source_api_version='V2' AND source_phone_ciphertext IS NOT NULL
+            THEN 'NOT_PROCESSED' ELSE contact_status END
+        WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">
+            #{sourceId}
+        </foreach>
+        AND ingest_status IN ('RETRY_PENDING','REVIEW_NEEDED','FAILED_FINAL')
+    </update>
+    <update id="markMaskingRecovered">
+        UPDATE t_channel_station_feedback SET ingest_status='COMPLETED',processing_stage='COMPLETED',last_error_code=NULL,
+          last_error_summary=NULL,next_retry_at=NULL,processed_at=NOW(3),updated_at=NOW(3) WHERE source_id=#{sourceId}
+    </update>
+    <update id="markMaskingFailure">
+        UPDATE t_channel_station_feedback SET ingest_status='RETRY_PENDING',last_error_code='MASKING_TECHNICAL_FAILURE',
+          last_error_summary=#{errorSummary},next_retry_at=DATE_ADD(NOW(3),INTERVAL 5 MINUTE),updated_at=NOW(3)
+        WHERE source_id=#{sourceId}
+    </update>
+</mapper>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ReportFactImportBatchMapper">
+    <sql id="columns">
+        id, batch_id AS batch_code, source_channel AS channel, batch_status,
+        reconciliation_status, total_rows, success_rows, inserted_rows, updated_rows,
+        skipped_rows, failed_rows, mapping_config_version AS mapping_version,
+        data_date_from, data_date_to, started_at, completed_at, created_at
+    </sql>
+    <select id="pageCreated" resultType="com.feedback.model.po.report.ReportFactImportBatchPo">
+        SELECT <include refid="columns"/> FROM t_import_batch
+        WHERE id &gt; #{afterId}
+        <if test="from != null">AND created_at &gt;= #{from}</if>
+        <if test="to != null">AND created_at &lt;= #{to}</if>
+        <if test="channel != null">AND source_channel = #{channel}</if>
+        ORDER BY id LIMIT #{limit}
+    </select>
+    <select id="byIds" resultType="com.feedback.model.po.report.ReportFactImportBatchPo">
+        SELECT <include refid="columns"/> FROM t_import_batch WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+</mapper>

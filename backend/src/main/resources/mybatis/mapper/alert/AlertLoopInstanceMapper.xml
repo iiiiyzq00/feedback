@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertLoopInstanceMapper"><select id="runtime" resultType="com.feedback.model.po.alert.AlertInstanceRuntimePo">SELECT COALESCE(SUM(instance_status IN ('FIRING','ACKNOWLEDGED')),0) open_alerts,COALESCE(SUM(resolved_at&gt;=DATE_SUB(NOW(3),INTERVAL 24 HOUR)),0) recovered24h FROM t_alert_instance</select></mapper>

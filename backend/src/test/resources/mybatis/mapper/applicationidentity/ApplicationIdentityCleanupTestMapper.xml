@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.integration.ApplicationIdentityCleanupTestMapper">
+    <delete id="deleteByPublicIds">
+        DELETE FROM t_application_identity WHERE public_id IN
+        <foreach collection="publicIds" item="publicId" open="(" separator="," close=")">UUID_TO_BIN(#{publicId})</foreach>
+    </delete>
+</mapper>

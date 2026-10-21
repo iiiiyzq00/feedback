@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.station.online.StationOnlineContentMapper">
+    <sql id="columns">source_id,title,description,mapping_rule_version,normalization_version,processing_status,masking_status,is_deleted</sql>
+    <insert id="insert">
+        INSERT INTO t_feedback_content(source_id,title,description,mapping_rule_version,normalization_version,
+          processing_status,masking_status)
+        VALUES(#{sourceId},#{title},#{description},#{mappingRuleVersion},#{normalizationVersion},#{processingStatus},#{maskingStatus})
+    </insert>
+    <select id="findBySourceIds" resultType="com.feedback.model.po.station.online.StationOnlineContentPo">
+        SELECT <include refid="columns"/> FROM t_feedback_content WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">
+            #{sourceId}
+        </foreach>
+    </select>
+    <update id="markMaskingPass">
+        UPDATE t_feedback_content SET title=#{title},description=#{description},masking_status='PASS',updated_at=NOW(3)
+        WHERE source_id=#{sourceId} AND masking_status='REVIEW_NEEDED' AND is_deleted=0
+    </update>
+    <select id="findMaskingReviewSourceIdsAfterId" resultType="long">
+        SELECT source_id FROM t_feedback_content
+        WHERE masking_status='REVIEW_NEEDED' AND is_deleted=0 AND source_id&gt;#{afterSourceId}
+        ORDER BY source_id LIMIT #{limit}
+    </select>
+</mapper>

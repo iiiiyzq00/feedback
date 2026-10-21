@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ReportFactSourceMapper">
+    <select id="page" resultType="com.feedback.model.po.report.ReportFactSourcePo">
+        SELECT id, source_channel AS channel, package_name, app_version, source_event_time,
+               COALESCE(source_event_time, ingest_time) AS occurred_at, province_code, city_code
+        FROM t_feedback_source
+        WHERE id &gt; #{query.afterId}
+          AND source_channel IN
+          <foreach collection="query.channels" item="channel" open="(" separator="," close=")">#{channel}</foreach>
+        <if test="query.from != null">AND COALESCE(source_event_time, ingest_time) &gt;= #{query.from}</if>
+        <if test="query.to != null">AND COALESCE(source_event_time, ingest_time) &lt;= #{query.to}</if>
+        <if test="query.regions != null">
+            AND (province_code IN
+            <foreach collection="query.regions" item="region" open="(" separator="," close=")">#{region}</foreach>
+            OR city_code IN
+            <foreach collection="query.regions" item="region" open="(" separator="," close=")">#{region}</foreach>)
+        </if>
+        <if test="query.packageName != null">AND package_name = #{query.packageName}</if>
+        <if test="query.appVersion != null">AND app_version = #{query.appVersion}</if>
+        ORDER BY id LIMIT #{query.limit}
+    </select>
+</mapper>

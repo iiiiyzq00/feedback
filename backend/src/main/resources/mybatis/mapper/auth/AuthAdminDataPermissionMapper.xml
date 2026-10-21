@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthAdminDataPermissionMapper">
+  <!-- 管理员显式配置的用户数据范围；删除与重建必须由上层管理事务统一覆盖。 -->
+  <select id="findBySubjectIds" resultType="com.feedback.model.po.auth.AuthAdminDataScopePo">
+    SELECT
+      subject_id,
+      scope_type AS type,
+      scope_value AS value,
+      access_level,
+      effect
+    FROM t_auth_data_permission
+    WHERE subject_type = 'USER'
+      AND subject_id IN
+      <foreach collection="subjectIds" item="id" open="(" separator="," close=")">
+        #{id}
+      </foreach>
+    ORDER BY id
+  </select>
+
+  <delete id="deleteBySubjectId">
+    DELETE FROM t_auth_data_permission
+    WHERE subject_type = 'USER'
+      AND subject_id = #{subjectId}
+  </delete>
+
+  <insert id="insert">
+    INSERT INTO t_auth_data_permission (
+      subject_type,
+      subject_id,
+      scope_type,
+      scope_value,
+      access_level,
+      effect
+    ) VALUES (
+      'USER',
+      #{subjectId},
+      #{scopeType},
+      #{scopeValue},
+      #{accessLevel},
+      #{effect}
+    )
+  </insert>
+</mapper>

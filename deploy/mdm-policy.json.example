@@ -1,0 +1,28 @@
+{
+  "applicationId": "<FORMALLY_APPROVED_PACKAGE_ID>",
+  "deploymentMode": "managed-required",
+  "minimumAndroidApi": 24,
+  "permissions": {
+    "android.permission.PACKAGE_USAGE_STATS": "managed-grant",
+    "android.permission.SYSTEM_ALERT_WINDOW": "managed-grant",
+    "android.permission.POST_NOTIFICATIONS": "managed-grant-when-applicable"
+  },
+  "applicationPolicy": {
+    "allowBackgroundExecution": true,
+    "allowForegroundService": true,
+    "batteryOptimizationExemption": true,
+    "allowMediaProjectionWithUserConsent": true,
+    "whitelist": true
+  },
+  "networkPolicy": {
+    "requiredScheme": "https",
+    "allowedHosts": ["<PRODUCTION_FEEDBACK_HOST>"],
+    "certificatePinningReviewRequired": true
+  },
+  "rollout": {
+    "canaryDeviceCount": 5,
+    "stagedPercentages": [1, 10, 30, 100],
+    "haltOnCrashRatePercent": 1,
+    "haltOnUploadFailureRatePercent": 3
+  }
+}

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertTrendOccurrenceMapper">
+ <select id="countSdk" resultType="long">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=#{start} AND evaluation_time&lt;#{end}</select>
+ <insert id="upsert">INSERT INTO t_alert_occurrence(occurrence_type,metric_code,dimension_key,sample_count,completeness,evaluation_snapshot,evaluation_time,created_at) VALUES <foreach collection="rows" item="row" separator=",">('HOURLY_BASELINE',#{row.metric},#{row.dimension},#{row.sampleCount},1,JSON_OBJECT('calculatedAt',NOW(3)),#{row.start},NOW(3))</foreach> ON DUPLICATE KEY UPDATE sample_count=VALUES(sample_count),completeness=1,evaluation_snapshot=JSON_OBJECT('calculatedAt',NOW(3))</insert>
+ <select id="findBaselines" resultType="com.feedback.model.po.alert.TrendBaselinePo">SELECT dimension_key,evaluation_time bucket_start,sample_count FROM t_alert_occurrence WHERE occurrence_type='HOURLY_BASELINE' AND metric_code=#{metric} AND dimension_key IN <foreach collection="dimensions" item="dimension" open="(" separator="," close=")">#{dimension}</foreach> AND evaluation_time&gt;=#{start} AND evaluation_time&lt;#{end}</select>
+</mapper>

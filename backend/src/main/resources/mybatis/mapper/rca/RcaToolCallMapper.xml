@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  t_rca_tool_call 的读写：发起（PENDING）→ 回写（COMMITTED）→ 按任务取回。
+
+  这份语句是 RcaToolRecovery 那张判定表的**写入侧**。判定表要求的两个事实来源是
+  「持久化调用记录」与「状态快照里的证据账本」，在此之前的实现只有后者，
+  所以 PENDING / 半提交 / UNKNOWN 三行判定在生产上永远不会被触发。
+
+  三条贯穿全文件的约定：
+
+  1. **幂等靠先查后写，不靠 ON DUPLICATE KEY UPDATE**。表上的 idx_rca_tool_dedup
+     是普通索引（V242 的 DDL 如此），撞不出重复键。见 RcaToolCallMapper 的说明。
+  2. **状态列由语句固定，不开放给调用方**：发起行恒 PENDING / UNKNOWN，
+     回写恒 COMMITTED 且只改仍是 PENDING 的行。
+  3. **JSON 列由调用方拼好再传入**，SQL 里不做字符串拼接：本文件不出现美元花括号占位符
+     （取值一律走 #{} 预处理参数，受 MyBatisBindingGateTest 的白名单约束）。
+
+  两处**刻意不写**的列，列出来是为了下次有人改这里时不必重新推导：
+
+  · error_semantic：领域模型里没有与它对应的字段。ToolResultStatus 本身就是语义码，
+    再抄一份进这一列只会产生两个可能不一致的来源。
+    将来接上游错误码时应改 ToolResult 而不是只改这里。
+  · step_id：t_rca_agent_step 目前只有 DDL、没有写入侧，填了会撞外键。
+    它可空，留 NULL 是诚实的「本行暂不归属某个步骤」，而不是漏填。
+    observation_snapshot 的形状是 {"summary": "..."}，只放摘要正文——
+    完整正文在证据账本里，按 evidence_id 回源。listByTask 反向按同一个键抽取，
+    两处形状必须一致：改一处就要改另一处。
+
+  另有一处**只写不读**：trace_id / span_id 由 insertPending 落库，但 listByTask
+  刻意不取。listByTask 的产物是恢复判定的输入（与 ToolCallRecord 一一对应），
+  链路标识不参与任何判定；把它读进来会诱使判定分支去看它，而它属于调度信息。
+  要按链路串调用链时直接查这一张表（V243 已建 idx_rca_tool_trace），
+  读侧不为一个人手排障的用途扩展。
+-->
+<mapper namespace="com.feedback.mapper.rca.RcaToolCallMapper">
+
+  <!--
+    找出同一 (任务, 工具, 参数摘要, 轮次) 下尚未落定的调用行。
+
+    查询条件正好是 idx_rca_tool_dedup 的前缀，是一次索引点查。
+    只找 PENDING：已提交的行不能沿用，否则重放会覆盖一条已产生证据的结论。
+    该任务可能有多轮、同轮多个工具，所以返回多行时取最早的一条（id 最小）——
+    那才是崩溃时留下的那一条，后插的都是同一逻辑调用的重复尝试。
+  -->
+  <select id="findPendingId" resultType="java.lang.Long">
+    SELECT id FROM t_rca_tool_call
+    WHERE task_id = #{taskId}
+      AND tool_name = #{toolName}
+      AND params_digest = #{paramsDigest}
+      AND decision_round = #{decisionRound}
+      AND local_commit_state = 'PENDING'
+    ORDER BY id ASC
+    LIMIT 1
+  </select>
+
+  <!--
+    发起一次调用：先落 PENDING 行，再去打上游。
+
+    result_status 只能填 UNKNOWN —— chk_rca_tool_result_status 的取值集合里
+    没有「进行中」这种值。这不是将就：此刻确实没有结果，
+    而 UNKNOWN 的语义正是「未归类失败，调用方必须显式处理」。
+    RcaToolRecovery.decidePending 不读 status，两个字段不冲突。
+
+    provider_request_id 留空由回写填入：在发起阶段编一个出来，
+    会让恢复判定把「无从对账」误判成「可以按 ID 对账」，
+    进而去问上游一个不存在的单据。
+
+    trace_id / span_id 由调用方给（来自任务行与 ToolSpanIdFactory 的确定性推导），
+    两列**整体可空**且必须同进同出——chk_rca_tool_trace_span_pair 是同一条不变式。
+    这里不做兜底：两个都为空表示「这次执行没有链路标识」，
+    SQL 用 UUID() 补一个会让这个事实永远查不出来（还会把随机性带进可复算的记录里）。
+  -->
+  <insert id="insertPending" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_rca_tool_call (
+      task_id,decision_round,tool_name,tool_version,params_digest,params_snapshot,
+      result_status,local_commit_state,trace_id,span_id
+    ) VALUES (
+      #{taskId},#{decisionRound},#{toolName},#{toolVersion},#{paramsDigest},#{paramsSnapshotJson},
+      'UNKNOWN','PENDING',#{traceId},#{spanId}
+    )
+  </insert>
+
+  <!--
+    回写调用结果。
+
+    WHERE 带 local_commit_state = 'PENDING' 是有意的，不是防御性冗余：
+    一次已提交的结论被重放路径再写一遍，审计会看到「同一次调用提交了两遍」，
+    而真正发生过的事情只有一遍。影响行数为 0 只表示「这次没有推进任何行」，
+    不代表写失败，调用方不要据此抛异常（在工具边界上抛异常会中止整次调查）。
+
+    observation_snapshot 写 {"summary": "..."}：只放摘要正文。
+    summary 为 null 时整体留 NULL，而不是写一个 {"summary": null} ——
+    后者会让「这次调用没有观察结果」在库上长得像「有观察结果但摘要是空的」，
+    而恢复判定正是靠这个区分「已落定的失败」与「半提交」。
+  -->
+  <update id="commitToolCall">
+    UPDATE t_rca_tool_call SET
+      result_status = #{resultStatus},
+      provider_request_id = #{providerRequestId},
+      local_commit_state = 'COMMITTED',
+      observation_digest = #{observationDigest},
+      observation_snapshot = #{observationSummaryJson},
+      evidence_id = #{evidenceId},
+      latency_ms = #{latencyMs},
+      input_tokens = #{inputTokens},
+      output_tokens = #{outputTokens},
+      cost_usd = #{costUsd}
+    WHERE id = #{id}
+      AND local_commit_state = 'PENDING'
+  </update>
+
+  <!--
+    按任务取回调用记录，恢复判定的输入。
+
+    observation_summary 从 observation_snapshot 的 $.summary 抽出来，而不是
+    在 Kotlin 侧再解析一遍 JSON：形状的定义只有写入侧一处，
+    抽取与抽取的逆运算放在同一个文件里，改形状时不会漏掉一边。
+
+    不取 params_snapshot / observation_snapshot 正文：恢复判定要看的是
+    「这次调用走到了哪一步」，正文按 evidence_id 回源。把它们读进来
+    只会让每次领取任务都多搬一批用不上的 JSON。
+  -->
+  <select id="listByTask" resultType="com.feedback.model.po.rca.RcaToolCallPo">
+    SELECT
+      id,
+      tool_name,
+      tool_version,
+      params_digest,
+      decision_round,
+      result_status,
+      provider_request_id,
+      local_commit_state,
+      observation_digest,
+      JSON_UNQUOTE(JSON_EXTRACT(observation_snapshot, '$.summary')) AS observation_summary,
+      evidence_id,
+      replayed_from_id,
+      latency_ms,
+      input_tokens,
+      output_tokens,
+      cost_usd
+    FROM t_rca_tool_call
+    WHERE task_id = #{taskId}
+    ORDER BY id ASC
+  </select>
+</mapper>

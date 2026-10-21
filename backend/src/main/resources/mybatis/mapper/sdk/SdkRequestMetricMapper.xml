@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sdk.SdkRequestMetricMapper">
+    <insert id="insertRequestMetric" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_alert_occurrence(
+          occurrence_type,metric_code,dimension_key,http_status,duration_ms,error_type,fact_status,
+          evaluation_snapshot,evaluation_time)
+        VALUES('SDK_REQUEST','SDK_REQUEST',#{appId},#{httpStatus},#{durationMs},#{errorCode},#{resultType},
+          CAST(#{snapshotJson} AS JSON),CURRENT_TIMESTAMP(3))
+    </insert>
+
+    <delete id="purgeExpiredRequestMetrics">
+        DELETE FROM t_alert_occurrence
+        WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&lt;DATE_SUB(CURRENT_TIMESTAMP(3),INTERVAL 30 DAY)
+        LIMIT #{limit}
+    </delete>
+</mapper>

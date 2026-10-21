@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ClusterReportContentMapper">
+    <select id="safeByIds" resultType="com.feedback.model.po.report.ClusterReportContentPo">
+        SELECT source_id, title, description, function_module, issue_category
+        FROM t_feedback_content
+        WHERE source_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+          AND is_deleted = 0 AND masking_status = 'PASS'
+    </select>
+</mapper>

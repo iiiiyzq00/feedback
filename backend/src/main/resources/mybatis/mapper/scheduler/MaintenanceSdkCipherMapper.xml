@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.scheduler.MaintenanceSdkCipherMapper">
+    <select id="candidates" resultType="com.feedback.model.po.scheduler.MaintenanceSdkCipherCandidatePo">
+        SELECT id, feedback_source_id
+        FROM t_sdk_ingest
+        WHERE retention_until &lt; NOW(3)
+          AND ciphertext_deleted_at IS NULL
+          AND ingest_status NOT IN ('PROCESSING', 'RETRY_PENDING', 'REVIEW_NEEDED')
+        <if test="afterId != null">AND id &gt; #{afterId}</if>
+        ORDER BY id
+        LIMIT #{limit}
+        FOR UPDATE
+    </select>
+    <update id="clear">
+        UPDATE t_sdk_ingest
+        SET encrypted_data_key = NULL,
+            payload_nonce = NULL,
+            payload_ciphertext = NULL,
+            payload_tag = NULL,
+            contact_nonce = NULL,
+            contact_ciphertext = NULL,
+            contact_tag = NULL,
+            ciphertext_deleted_at = NOW(3),
+            disposition_reason = IF(disposition_status = 'OPEN', 'RETENTION_EXPIRED', disposition_reason),
+            disposition_note = IF(disposition_status = 'OPEN', '原始密文到期清理，异常自动归档', disposition_note),
+            disposition_at = IF(disposition_status = 'OPEN', NOW(3), disposition_at),
+            disposition_status = IF(disposition_status = 'OPEN', 'AUTO_ARCHIVED', disposition_status)
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+          AND retention_until &lt; NOW(3)
+          AND ciphertext_deleted_at IS NULL
+          AND ingest_status NOT IN ('PROCESSING', 'RETRY_PENDING', 'REVIEW_NEEDED')
+    </update>
+</mapper>

@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.AlertRuleInstanceMapper">
+ <select id="lastTriggered" resultType="com.feedback.model.po.alert.AlertRuleLastTriggeredPo">SELECT rule_id,MAX(fired_at) last_triggered_at FROM t_alert_instance WHERE rule_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> GROUP BY rule_id</select>
+</mapper>

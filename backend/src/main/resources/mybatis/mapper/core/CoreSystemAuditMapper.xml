@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.core.CoreSystemAuditMapper">
+  <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_system_audit_log(user_id,operation,
+    target_type,target_id,operation_detail,ip_address,created_at) VALUES(#{row.userId},#{row.operation},#{row.targetType},
+    #{row.targetId},CAST(#{row.operationDetailJson} AS JSON),#{row.ipAddress},
+    #{row.createdAt})</insert>
+  <select id="findAll" resultType="com.feedback.model.po.core.CoreSystemAuditPo">SELECT id,user_id,operation,target_type,target_id,
+    CAST(operation_detail AS CHAR) operation_detail_json,ip_address,created_at FROM t_system_audit_log ORDER BY id</select>
+</mapper>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.jira.owner.JiraOwnerAssignmentMapper">
+    <select id="findBySourceIdsForUpdate" resultType="com.feedback.model.po.jira.owner.JiraOwnerAssignmentPo">
+        SELECT feedback_source_id,owner_user_id FROM t_feedback_assignment
+        WHERE feedback_source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY feedback_source_id FOR UPDATE
+    </select>
+    <insert id="insertBatch">
+        INSERT IGNORE INTO t_feedback_assignment(feedback_source_id,owner_user_id,assigned_by) VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (#{row.sourceId},#{row.ownerUserId},#{row.ownerUserId})
+        </foreach>
+    </insert>
+</mapper>

@@ -1,0 +1,41 @@
+CREATE TABLE t_alert_rule_test_run (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  rule_id BIGINT DEFAULT NULL,
+  rule_code VARCHAR(50) DEFAULT NULL,
+  rule_name VARCHAR(200) NOT NULL,
+  test_mode VARCHAR(20) NOT NULL,
+  run_status VARCHAR(20) NOT NULL,
+  matched BOOLEAN NOT NULL DEFAULT FALSE,
+  input_snapshot JSON NOT NULL,
+  result_snapshot JSON NOT NULL,
+  sample_start DATETIME(3) DEFAULT NULL,
+  sample_end DATETIME(3) DEFAULT NULL,
+  sample_size BIGINT NOT NULL DEFAULT 0,
+  external_notifications_sent INT NOT NULL DEFAULT 0,
+  created_by BIGINT NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  completed_at DATETIME(3) DEFAULT NULL,
+  KEY idx_alert_rule_test_rule_time(rule_id,created_at),
+  KEY idx_alert_rule_test_mode_time(test_mode,created_at),
+  CONSTRAINT chk_alert_rule_test_mode CHECK (test_mode IN ('SIMULATION','REPLAY','SHADOW','DRILL')),
+  CONSTRAINT chk_alert_rule_test_status CHECK (run_status IN ('RUNNING','COMPLETED','FAILED')),
+  CONSTRAINT chk_alert_rule_test_no_external CHECK (external_notifications_sent=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs COMMENT='隔离告警规则测试与验收证据';
+
+CREATE TABLE t_alert_drill_instance (
+  id BIGINT AUTO_INCREMENT PRIMARY KEY,
+  test_run_id BIGINT NOT NULL,
+  rule_id BIGINT NOT NULL,
+  rule_code VARCHAR(50) NOT NULL,
+  drill_title VARCHAR(200) NOT NULL,
+  severity VARCHAR(5) NOT NULL,
+  drill_status VARCHAR(20) NOT NULL DEFAULT 'OPEN',
+  notification_channel VARCHAR(20) NOT NULL DEFAULT 'IN_APP',
+  production_impact BOOLEAN NOT NULL DEFAULT FALSE,
+  created_by BIGINT NOT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  closed_at DATETIME(3) DEFAULT NULL,
+  KEY idx_alert_drill_time(created_at),
+  CONSTRAINT chk_alert_drill_channel CHECK(notification_channel='IN_APP'),
+  CONSTRAINT chk_alert_drill_no_production CHECK(production_impact=0)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs COMMENT='非生产告警演练实例';

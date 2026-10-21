@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.detail.FeedbackDetailSourceMapper">
+    <select id="findById" resultType="com.feedback.model.po.feedback.detail.FeedbackDetailSourcePo">
+        SELECT id, source_channel, source_record_id, app_version, province_code, city_code, district_code,
+               fault_occurred_at, fault_time_precision, fault_time_source, fault_time_resolution,
+               ingest_time, source_update_time, import_batch_id, data_environment
+        FROM t_feedback_source
+        WHERE id = #{sourceId}
+    </select>
+
+    <!-- 导航候选只在 source 单表收紧环境、渠道和地域；模块、删除和脱敏状态由批量 content 事实复核。 -->
+    <sql id="visibleSourceScope">
+        data_environment = 'PRODUCTION'
+        AND source_channel IN
+        <foreach collection="channels" item="channel" open="(" separator="," close=")">#{channel}</foreach>
+        <if test="regions != null">
+            AND (province_code IN
+            <foreach collection="regions" item="region" open="(" separator="," close=")">#{region}</foreach>
+            OR city_code IN
+            <foreach collection="regions" item="region" open="(" separator="," close=")">#{region}</foreach>)
+        </if>
+    </sql>
+
+    <!-- 与详情页“故障时间倒序、ID 倒序”一致的反向 keyset 扫描；NULL 时间稳定落在末尾。 -->
+    <select id="findPreviousCandidates" resultType="com.feedback.model.po.feedback.detail.FeedbackNavigationSourcePo">
+        SELECT id, source_channel, province_code, city_code, fault_occurred_at
+        FROM t_feedback_source
+        WHERE <include refid="visibleSourceScope" />
+          AND (
+            (#{cursor.faultOccurredAt} IS NULL AND (fault_occurred_at IS NOT NULL OR
+                (fault_occurred_at IS NULL AND id &gt; #{cursor.id})))
+            OR
+            (#{cursor.faultOccurredAt} IS NOT NULL AND fault_occurred_at IS NOT NULL AND
+                (fault_occurred_at &gt; #{cursor.faultOccurredAt} OR
+                 (fault_occurred_at = #{cursor.faultOccurredAt} AND id &gt; #{cursor.id})))
+          )
+        ORDER BY fault_occurred_at IS NULL DESC, fault_occurred_at ASC, id ASC
+        LIMIT #{limit}
+    </select>
+
+    <!-- 正向 keyset 扫描；limit 是每批候选上限，不保证每批都有通过 content 范围复核的结果。 -->
+    <select id="findNextCandidates" resultType="com.feedback.model.po.feedback.detail.FeedbackNavigationSourcePo">
+        SELECT id, source_channel, province_code, city_code, fault_occurred_at
+        FROM t_feedback_source
+        WHERE <include refid="visibleSourceScope" />
+          AND (
+            (#{cursor.faultOccurredAt} IS NULL AND fault_occurred_at IS NULL AND id &lt; #{cursor.id})
+            OR
+            (#{cursor.faultOccurredAt} IS NOT NULL AND
+                (fault_occurred_at IS NULL OR fault_occurred_at &lt; #{cursor.faultOccurredAt} OR
+                 (fault_occurred_at = #{cursor.faultOccurredAt} AND id &lt; #{cursor.id})))
+          )
+        ORDER BY fault_occurred_at IS NULL, fault_occurred_at DESC, id DESC
+        LIMIT #{limit}
+    </select>
+</mapper>
+

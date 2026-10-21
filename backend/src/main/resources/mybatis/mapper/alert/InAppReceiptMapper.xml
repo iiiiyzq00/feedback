@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.InAppReceiptMapper">
+    <select id="byTargets" resultType="com.feedback.model.po.alert.InAppReceiptPo">
+        SELECT target_id, MAX(event_time) AS read_at
+        FROM t_system_audit_log
+        WHERE operation = 'IN_APP_NOTIFICATION_READ'
+          AND target_type = #{type}
+          AND user_id = #{user}
+          AND target_id IN
+          <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        GROUP BY target_id
+    </select>
+    <insert id="insert">
+        INSERT IGNORE INTO t_system_audit_log(
+            user_id, operation, audit_class, outcome, target_type, target_id,
+            operation_detail, detail_schema_version, event_time, idempotency_key
+        ) VALUES(
+            #{user}, 'IN_APP_NOTIFICATION_READ', 'BUSINESS', 'SUCCESS', #{type}, #{target},
+            JSON_OBJECT('readAt', NOW(3)), 'in-app-read-v1', NOW(3), #{key}
+        )
+    </insert>
+    <insert id="insertBatch">
+        INSERT IGNORE INTO t_system_audit_log(
+            user_id, operation, audit_class, outcome, target_type, target_id,
+            operation_detail, detail_schema_version, event_time, idempotency_key
+        ) VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (#{row.userId}, 'IN_APP_NOTIFICATION_READ', 'BUSINESS', 'SUCCESS', #{row.type}, #{row.targetId},
+             JSON_OBJECT('readAt', NOW(3)), 'in-app-read-v1', NOW(3), #{row.key})
+        </foreach>
+    </insert>
+</mapper>

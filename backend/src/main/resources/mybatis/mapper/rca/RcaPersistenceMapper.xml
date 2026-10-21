@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  RCA 持久化节点的语句：证据账本 → 假设 → 强制证据 → 归因 → 引用校验 → Incident → 知识候选。
+
+  三条贯穿全文件的约定：
+
+  1. **写方法一律幂等**，因为持久化节点会重放。四种表分别用四种手段达到幂等：
+     证据/假设/强制证据/归因走 `ON DUPLICATE KEY UPDATE`（有确定性唯一键），
+     引用校验走 `INSERT ... SELECT ... WHERE NOT EXISTS`（这张表根本没有唯一键），
+     知识候选先查后插（唯一键 public_id 是随机的，挡不住重放）。
+  2. **不写业务时间以外的列**。`created_at` / `updated_at` 交给列默认值，
+     业务时间（`decided_at`、`observed_from`）一律来自入参，不用 `NOW()` 代替——
+     用入库时间会让补录数据的时序整体平移到当前时刻。
+  3. **JSON 列由调用方拼好再传入**，SQL 里不做字符串拼接：本文件不出现 `${}` 占位符
+     （取值一律走 `#{}` 预处理参数，受 MyBatisBindingGateTest 的白名单约束）。
+
+  与 Kotlin 侧的口径对齐点（改一处必须改另一处）：
+    · `attribution_level` 的取值 ↔ EpisodeAttributionLevel.storageCode
+    · `coverage_type` / `required_coverage_type` ↔ EvidenceCoverage.storageCode
+    · `support_verdict` ↔ ClaimSupportVerdict.storageCode
+    · `knowledge_status` 固定 DRAFT ↔ KnowledgeSearchMapper 只召回 PUBLISHED
+-->
+<mapper namespace="com.feedback.mapper.rca.RcaPersistenceMapper">
+
+  <!--
+    证据账本。
+
+    幂等键 (task_id, evidence_id)。`evidence_id` 由工具与参数摘要推导，天然稳定。
+
+    冲突时更新全部可变列而不是只留首次写入：证据会因迟到数据产生修正
+    （`revision` 递增），只留首次会让账本停在旧水位上。
+    `superseded_by_id` 不在本语句的写入面内——它要指向另一行的主键，
+    属于「修正链」的维护，不由这条语句负责。
+
+    参数是 PO 本身（`upsertEvidence(row: RcaEvidenceInsertPo)`，没有 @Param），
+    所以属性一律用**裸名**。
+  -->
+  <insert id="upsertEvidence">
+    INSERT INTO t_rca_evidence (
+      task_id,evidence_id,evidence_type,source_tool,source_ref,coverage_type,coverage_scope,
+      numerator,denominator,control_group,observed_from,observed_to,time_watermark,
+      permission_scope,content_digest,summary,raw_reference,revision
+    ) VALUES (
+      #{taskId},#{evidenceId},#{evidenceType},#{sourceTool},#{sourceRef},#{coverageType},#{coverageScope},
+      #{numerator},#{denominator},#{controlGroup},#{observedFrom},#{observedTo},#{timeWatermark},
+      #{permissionScope},#{contentDigest},#{summary},#{rawReference},#{revision}
+    )
+    ON DUPLICATE KEY UPDATE
+      evidence_type=VALUES(evidence_type),
+      source_tool=VALUES(source_tool),
+      source_ref=VALUES(source_ref),
+      coverage_type=VALUES(coverage_type),
+      coverage_scope=VALUES(coverage_scope),
+      numerator=VALUES(numerator),
+      denominator=VALUES(denominator),
+      control_group=VALUES(control_group),
+      observed_from=VALUES(observed_from),
+      observed_to=VALUES(observed_to),
+      time_watermark=VALUES(time_watermark),
+      permission_scope=VALUES(permission_scope),
+      content_digest=VALUES(content_digest),
+      summary=VALUES(summary),
+      raw_reference=VALUES(raw_reference),
+      revision=VALUES(revision)
+  </insert>
+
+  <!--
+    假设。幂等键 (task_id, hypothesis_code, revision)。
+
+    修正过的假设以新 revision 追加，历史修订不被覆盖——所以冲突时更新的是
+    `statement` / 置信等级 / 证据列表这些**同一 revision 内**的内容，
+    而不是把旧 revision 抹掉。
+
+    `merged_into_id` 不在这里写：它的值是被合并方的行主键，要等对方先落库，
+    由 linkHypothesisMerge 按编码回填。
+  -->
+  <insert id="upsertHypothesis">
+    INSERT INTO t_rca_hypothesis (
+      task_id,hypothesis_code,statement,mechanism_note,confidence_level,confidence_score,
+      hypothesis_status,supporting_evidence,refuting_evidence,unresolved_refutation_count,revision
+    ) VALUES (
+      #{taskId},#{hypothesisCode},#{statement},#{mechanismNote},#{confidenceLevel},#{confidenceScore},
+      #{hypothesisStatus},#{supportingEvidenceJson},#{refutingEvidenceJson},
+      #{unresolvedRefutationCount},#{revision}
+    )
+    ON DUPLICATE KEY UPDATE
+      statement=VALUES(statement),
+      mechanism_note=VALUES(mechanism_note),
+      confidence_level=VALUES(confidence_level),
+      confidence_score=VALUES(confidence_score),
+      hypothesis_status=VALUES(hypothesis_status),
+      supporting_evidence=VALUES(supporting_evidence),
+      refuting_evidence=VALUES(refuting_evidence),
+      unresolved_refutation_count=VALUES(unresolved_refutation_count)
+  </insert>
+
+  <!--
+    回填合并链接：把 `hypothesis_code` 那一行的 merged_into_id 指向
+    `mergedIntoCode` 的最新 revision 所在行。
+
+    取最新 revision 而不是任意一行：合并的语义是「并入那个假设的当前形态」，
+    指向一个已被修正过的旧修订会让复核时读到的机制链是过期的。
+    目标不存在时子查询返回 NULL，语句影响 0 行，不会写出悬空引用。
+  -->
+  <update id="linkHypothesisMerge">
+    UPDATE t_rca_hypothesis
+    SET merged_into_id = (
+      SELECT id FROM (
+        SELECT h2.id AS id FROM t_rca_hypothesis h2
+        WHERE h2.task_id = #{taskId} AND h2.hypothesis_code = #{mergedIntoCode}
+        ORDER BY h2.revision DESC LIMIT 1
+      ) AS target
+    )
+    WHERE task_id = #{taskId} AND hypothesis_code = #{hypothesisCode}
+  </update>
+
+  <!--
+    强制证据计划完成情况。幂等键 (task_id, requirement_code)。
+
+    一个任务里同一项门禁只有一行，重放时更新完成状态而不是再插一行——
+    插成两行会让 `MandatoryEvidencePlan.blocking` 按行数重复计数。
+  -->
+  <insert id="upsertMandatoryEvidence">
+    INSERT INTO t_rca_mandatory_evidence (
+      task_id,requirement_code,requirement_type,trigger_rule,required_reason,
+      completion_status,satisfied_by_evidence_id,failure_semantic,waiver_reason
+    ) VALUES (
+      #{taskId},#{requirementCode},#{requirementType},#{triggerRule},#{requiredReason},
+      #{completionStatus},#{satisfiedByEvidenceId},#{failureSemantic},#{waiverReason}
+    )
+    ON DUPLICATE KEY UPDATE
+      requirement_type=VALUES(requirement_type),
+      trigger_rule=VALUES(trigger_rule),
+      required_reason=VALUES(required_reason),
+      completion_status=VALUES(completion_status),
+      satisfied_by_evidence_id=VALUES(satisfied_by_evidence_id),
+      failure_semantic=VALUES(failure_semantic),
+      waiver_reason=VALUES(waiver_reason)
+  </insert>
+
+  <!--
+    读任务当前的 state_version。归因写入时要把它填进领域事件的 aggregate_version，
+    而这条路径上没有租约令牌（端口入参只有 taskId），所以只能读一次。
+
+    显式列出唯一一列、按主键取：这是全文件唯一的 SELECT，也是唯一一处读而不是写。
+    任务不存在时返回 null（而不是 0）——调用方据此**跳过**事件写入而不是编一个版本号，
+    0 在 `chk_rca_domain_event_version` 下是合法值，编出来不会被任何约束挡住。
+  -->
+  <select id="findTaskStateVersion" resultType="java.lang.Long">
+    SELECT state_version FROM t_rca_agent_task WHERE id = #{taskId}
+  </select>
+
+  <!--
+    归因。幂等键 (episode_id, rca_task_id, attribution_revision)，
+    冲突时不改动已有行、只把 LAST_INSERT_ID 置成已存在那一行的主键
+    （本库既有的「建或取回」写法，见 EpisodeSessionMapper.upsertWorkItem）。
+
+    这里**不更新**已有行是刻意的：归因一旦落库就会被告警卡片与 Incident 影响面引用，
+    重放时改写它会让已经发出的通知与当前数据自相矛盾。
+    同一 revision 重放得到同一行，正是「重放不产生新归因」这条约束的落点。
+
+    `incident_id` 留空由 linkIncident 后续回填；`auto_linked` 与归因等级的
+    一致性由 chk_episode_attribution_autolink 在库上层兜底。
+  -->
+  <insert id="upsertAttribution" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_feedback_episode_attribution (
+      episode_id,rca_task_id,incident_id,root_cause_signature,attribution_level,
+      attribution_revision,basis_evidence,coverage_note,auto_linked,decided_at,decided_by
+    ) VALUES (
+      #{episodeId},#{rcaTaskId},NULL,#{rootCauseSignature},#{attributionLevel},
+      #{attributionRevision},#{basisEvidenceJson},#{coverageNote},#{autoLinked},#{decidedAt},#{decidedBy}
+    )
+    ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
+  </insert>
+
+  <!--
+    引用支持校验结果。**这张表没有唯一键**（idx_rca_claim_task / idx_rca_claim_review
+    都是普通索引），所以幂等不能靠 ON DUPLICATE KEY，只能判存在再插。
+
+    判存在键取 (task_id, claim_code, evidence_id)：claim_code 已经是
+    `假设编码#证据ID`，再加 evidence_id 是为了在 claim_code 被截断时仍然不误判。
+
+    这条语句已在本机 MySQL 8.0.46 上实测过：
+    `INSERT ... SELECT ... WHERE NOT EXISTS (SELECT ... FROM 同一张表)` 可以正常执行，
+    同一键连跑两次只落一行。用 FROM DUAL 是为了让 SELECT 有明确的来源表，
+    不依赖「省略 FROM」这一 MySQL 方言。
+
+    `hypothesis_id` 由子查询按编码解析，取最新 revision；解析不到时写 NULL——
+    claim 不一定挂在假设上，NULL 表示这是任务级 claim。
+    `review_status` 固定 UNREVIEWED：双人复核由人工流程推进，
+    `chk_rca_claim_dual_review` 要求 AGREED 必须带两个复核人，机器不得自行置位。
+  -->
+  <insert id="insertClaimPairIfAbsent">
+    INSERT INTO t_rca_claim_evidence (
+      task_id,hypothesis_id,claim_code,claim_type,claim_text,evidence_id,
+      evidence_coverage_type,required_coverage_type,support_verdict,verdict_reason,review_status
+    )
+    SELECT
+      #{taskId},
+      (SELECT h.id FROM t_rca_hypothesis h
+        WHERE h.task_id = #{taskId} AND h.hypothesis_code = #{hypothesisCode}
+        ORDER BY h.revision DESC LIMIT 1),
+      #{claimCode},#{claimType},#{claimText},#{evidenceId},
+      #{evidenceCoverageType},#{requiredCoverageType},#{supportVerdict},#{verdictReason},'UNREVIEWED'
+    FROM DUAL
+    WHERE NOT EXISTS (
+      SELECT 1 FROM t_rca_claim_evidence c
+      WHERE c.task_id = #{taskId} AND c.claim_code = #{claimCode} AND c.evidence_id = #{evidenceId}
+    )
+  </insert>
+
+  <!--
+    找仍然开放的 Incident。t_incident 没有承载稳定根因签名的列，
+    所以「并入同一 Incident」只能按标题匹配——标题由稳定签名拼出，
+    这正是 RootCauseSignature 只放不变字段的原因。
+
+    只看 OPEN / INVESTIGATING：已 RESOLVED 的 Incident 不应把新反馈吞进去，
+    那会让一条已经收口的影响面在事后不断变大。
+    取 id 最大的一条，避免历史上已有重名时随机命中。
+  -->
+  <select id="findOpenIncidentIdByTitle" resultType="long">
+    SELECT id FROM t_incident
+    WHERE incident_title = #{title} AND incident_status IN ('OPEN','INVESTIGATING')
+    ORDER BY id DESC LIMIT 1
+  </select>
+
+  <!--
+    新建 Incident。`incident_status` / `opened_at` 走列默认值（OPEN / 当前时刻），
+    严重度由调用方给出——RCA 的证据模型里没有定级依据，一律开最低档交人工重定级。
+  -->
+  <insert id="insertIncident" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_incident (public_id,incident_title,incident_severity)
+    VALUES (UUID_TO_BIN(#{publicId}),#{incidentTitle},#{incidentSeverity})
+  </insert>
+
+  <!--
+    关联 Incident。
+
+    `WHERE` 里**独立再判一次归因等级**：调用方（RcaPersistNode）已经按
+    `autoLinkPermitted` 判过，但那是业务约束；这里是第二道，
+    让「非前两档不得关联」以影响行数为 0 的形式生效，
+    而不是等到 chk_episode_attribution_incident_link 报错才被发现。
+    两道都留着，是因为只留调用方那道的话，将来任何新的调用点都能绕过去。
+  -->
+  <update id="linkAttributionToIncident">
+    UPDATE t_feedback_episode_attribution
+    SET incident_id = #{incidentId}
+    WHERE id = #{attributionRowId}
+      AND attribution_level IN ('DIRECT_CONFIRMED','SUPPORTED_INHERITED')
+      AND incident_id IS NULL
+  </update>
+
+  <!--
+    该任务是否已沉淀过知识候选。命中返回已有主键，调用方直接把它当结果返回，
+    不再插一条——t_ai_knowledge 的唯一键是 public_id（每次随机），挡不住重放。
+  -->
+  <select id="findKnowledgeCandidateId" resultType="long">
+    SELECT id FROM t_ai_knowledge
+    WHERE source_rca_id = #{sourceRcaId} AND knowledge_source = 'AGENT_RCA'
+    ORDER BY id DESC LIMIT 1
+  </select>
+
+  <!--
+    知识候选。**`knowledge_status` 固定为 'DRAFT'，不开放给调用方**：
+    KnowledgeSearchMapper 只召回 PUBLISHED，所以 DRAFT 让 RCA 的结论
+    不可能在同一条链路里被当成历史证据召回。写成 PUBLISHED 会让模型
+    用自己上一轮的结论支持自己下一轮的假设，而且从账本上看每条引用都有出处。
+
+    `knowledge_source` 固定 'AGENT_RCA'，与 findKnowledgeCandidateId 的过滤条件
+    必须一致，否则幂等判断会落空。`created_by` 留空：这是机器产出，
+    没有人类作者，硬填一个账号会让「谁写的」这个问题得到错误答案。
+  -->
+  <insert id="insertKnowledgeCandidate" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_ai_knowledge (
+      public_id,knowledge_title,knowledge_content,knowledge_tags,knowledge_source,
+      source_rca_id,knowledge_status
+    ) VALUES (
+      UUID_TO_BIN(#{publicId}),#{knowledgeTitle},#{knowledgeContent},#{knowledgeTagsJson},
+      'AGENT_RCA',#{sourceRcaId},'DRAFT'
+    )
+  </insert>
+</mapper>

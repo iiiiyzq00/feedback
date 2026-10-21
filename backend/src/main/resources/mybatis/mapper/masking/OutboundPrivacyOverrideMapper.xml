@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.OutboundPrivacyOverrideMapper">
+  <select id="countBoundOverride" resultType="int">SELECT COUNT(*) FROM t_import_row
+    WHERE feedback_source_id=#{sourceId} AND privacy_review_decision='FALSE_POSITIVE_RELEASE'
+    AND privacy_review_rule_version=#{version} AND privacy_review_output_sha256=#{hash}</select>
+</mapper>

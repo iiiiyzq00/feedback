@@ -1,0 +1,7 @@
+ALTER TABLE t_cluster_link DROP CHECK chk_cluster_link_type;
+
+ALTER TABLE t_cluster_link
+  ADD CONSTRAINT chk_cluster_link_type CHECK (link_type IN (
+    'NEW_CLUSTER','AUTO_HIGH','AUTO_MEDIUM','MANUAL_CONFIRMED','MANUAL_REASSIGNED',
+    'MERGE_MIGRATION','SPLIT_MIGRATION','REOPENED','CANDIDATE','REJECTED'
+  ));

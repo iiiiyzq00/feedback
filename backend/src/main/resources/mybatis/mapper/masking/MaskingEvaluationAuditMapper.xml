@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingEvaluationAuditMapper">
+  <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_masking_audit(audit_type,
+    masking_rule_version,review_conclusion,reviewer,evaluation_key,eval_f1_score,ner_f1_score,high_risk_recall,
+    false_masking_rate,eval_passed_samples,eval_total_samples,eval_error_details)
+    VALUES('EVALUATION',#{row.maskingRuleVersion},'APPROVED',#{row.reviewer},#{row.evaluationKey},#{row.evalF1Score},
+    #{row.nerF1Score},#{row.highRiskRecall},#{row.falseMaskingRate},#{row.samples},#{row.samples},
+    CAST(#{row.errorDetailsJson} AS JSON))</insert>
+</mapper>

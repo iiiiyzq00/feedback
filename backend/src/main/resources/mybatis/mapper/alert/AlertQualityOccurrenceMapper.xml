@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.AlertQualityOccurrenceMapper">
+ <select id="countOpen" resultType="double">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='DEDUP_REVIEW'
+  AND fact_status='CONFIRMED' AND evaluation_time&lt;#{at}</select>
+ <insert id="insertDedup" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_alert_occurrence(occurrence_type,
+  metric_code,dimension_key,source_entity_id,related_entity_id,fact_status,risk_level,evaluation_snapshot,evaluation_time)
+  VALUES('DEDUP_REVIEW',#{row.errorType},#{row.urgency},#{row.sourceId},#{row.relatedId},'CONFIRMED',
+  IF(#{row.urgency}='URGENT','HIGH','MEDIUM'),JSON_OBJECT('confirmationNote',#{row.note},'confirmedBy',#{row.actor},
+  'confirmedAt',NOW(3)),NOW(3))</insert>
+ <update id="repair">UPDATE t_alert_occurrence SET fact_status='REPAIRED',resolution_note=#{note},resolved_by=#{actor},
+  resolved_at=NOW(3) WHERE occurrence_type='DEDUP_REVIEW' AND COALESCE(legacy_source_id,id)=#{id}
+  AND fact_status='CONFIRMED'</update>
+ <select id="findDedup" resultType="com.feedback.model.po.alert.IncorrectDedupPo">SELECT
+  COALESCE(legacy_source_id,id) id,source_entity_id feedback_source_id,related_entity_id related_source_id,
+  metric_code error_type,dimension_key urgency,fact_status status,
+  JSON_UNQUOTE(JSON_EXTRACT(evaluation_snapshot,'$.confirmationNote')) confirmation_note,evaluation_time confirmed_at,
+  resolution_note repair_note,resolved_at repaired_at,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(evaluation_snapshot,'$.confirmedBy')) AS UNSIGNED) confirmed_by
+  FROM t_alert_occurrence WHERE occurrence_type='DEDUP_REVIEW' ORDER BY id DESC LIMIT 200</select>
+</mapper>

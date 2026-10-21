@@ -1,0 +1,37 @@
+spring:
+  main:
+    banner-mode: "off"
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+  flyway:
+    enabled: true
+    clean-disabled: true
+    validate-on-migrate: true
+  data:
+    redis:
+      repositories:
+        enabled: false
+    elasticsearch:
+      repositories:
+        enabled: false
+
+app:
+  milvus:
+    enabled: false
+  ai:
+    embedding:
+      provider: hashing
+    enqueue-delay-ms: 3600000
+    worker-delay-ms: 3600000
+  cluster:
+    worker-delay-ms: 3600000
+  sync:
+    worker-delay-ms: 3600000
+  masking:
+    worker-delay-ms: 3600000
+  imports:
+    worker-delay-ms: 3600000
+  station-feedback:
+    worker-delay-ms: 3600000

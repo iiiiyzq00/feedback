@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.AlertAcceptanceTaskMapper">
+ <select id="findReplay" resultType="com.feedback.model.po.alert.AlertAcceptanceReplayPo">SELECT id,rule_id,
+  test_mode,domain_status run_status,external_notifications_sent FROM t_ai_task WHERE record_type='ALERT_RULE_TEST'
+  AND COALESCE(legacy_source_id,id)=#{id}</select>
+ <select id="findDrill" resultType="com.feedback.model.po.alert.AlertAcceptanceDrillPo">SELECT rule_id,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(input_snapshot,'$.productionImpact')) AS UNSIGNED) production_impact,
+  JSON_UNQUOTE(JSON_EXTRACT(input_snapshot,'$.notificationChannel')) notification_channel
+  FROM t_ai_task WHERE record_type='ALERT_DRILL' AND COALESCE(legacy_source_id,id)=#{id}</select>
+ <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_ai_task(record_type,task_domain,rule_id,
+  parent_task_id,reference_entity_id,task_key,task_status,domain_status,input_snapshot,output_snapshot,
+  snapshot_retention_until,content_sha256,user_id,completed_at) VALUES('ALERT_ACCEPTANCE','ALERT_GOVERNANCE',
+  #{row.ruleId},#{row.parentTaskId},#{row.drillId},CONCAT('ALERT_ACCEPTANCE:',UUID()),'COMPLETED','VALIDATED',
+  JSON_OBJECT('replayRunId',#{row.replayRunId},'drillId',#{row.drillId},'truePositive',#{row.truePositive},
+  'falsePositive',#{row.falsePositive},'falseNegative',#{row.falseNegative},'trueNegative',#{row.trueNegative}),
+  JSON_OBJECT('precisionRate',#{row.precision},'recallRate',#{row.recall},'routingOutcome',#{row.routingOutcome},
+  'assessedBy',#{row.actor}),DATE_ADD(NOW(3),INTERVAL 365 DAY),#{row.evidenceSha256},#{row.actor},NOW(3))</insert>
+ <update id="approve">UPDATE t_ai_task SET domain_status='APPROVED',
+  output_snapshot=JSON_SET(output_snapshot,'$.approvedBy',#{actor},'$.approvedAt',NOW(3)),completed_at=NOW(3)
+  WHERE record_type='ALERT_ACCEPTANCE' AND COALESCE(legacy_source_id,id)=#{id} AND domain_status='VALIDATED'
+  AND user_id&lt;&gt;#{actor} AND JSON_UNQUOTE(JSON_EXTRACT(output_snapshot,'$.routingOutcome'))='PASSED'</update>
+ <select id="findAcceptances" resultType="com.feedback.model.po.alert.AlertAcceptancePo">SELECT
+  COALESCE(legacy_source_id,id) id,rule_id,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(input_snapshot,'$.replayRunId')) AS UNSIGNED) replay_run_id,
+  reference_entity_id drill_id,CAST(JSON_UNQUOTE(JSON_EXTRACT(input_snapshot,'$.truePositive')) AS UNSIGNED) true_positive,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(input_snapshot,'$.falsePositive')) AS UNSIGNED) false_positive,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(input_snapshot,'$.falseNegative')) AS UNSIGNED) false_negative,
+  CAST(JSON_UNQUOTE(JSON_EXTRACT(input_snapshot,'$.trueNegative')) AS UNSIGNED) true_negative,
+  JSON_EXTRACT(output_snapshot,'$.precisionRate') precision_rate,JSON_EXTRACT(output_snapshot,'$.recallRate') recall_rate,
+  JSON_UNQUOTE(JSON_EXTRACT(output_snapshot,'$.routingOutcome')) routing_outcome,content_sha256 evidence_sha256,
+  domain_status status,user_id assessed_by,CAST(JSON_UNQUOTE(JSON_EXTRACT(output_snapshot,'$.approvedBy')) AS UNSIGNED) approved_by,
+  created_at assessed_at,completed_at approved_at FROM t_ai_task WHERE record_type='ALERT_ACCEPTANCE'
+  <if test="ruleId != null">AND rule_id=#{ruleId}</if> ORDER BY legacy_source_id DESC</select>
+</mapper>

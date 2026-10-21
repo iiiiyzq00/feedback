@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertEngineOccurrenceMapper"><insert id="insert">INSERT INTO t_alert_occurrence(instance_id,evaluation_snapshot,evaluation_time) VALUES(#{instance},CAST(#{snapshot} AS JSON),NOW(3))</insert></mapper>

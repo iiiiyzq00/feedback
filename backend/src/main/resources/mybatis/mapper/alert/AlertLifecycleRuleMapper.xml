@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertLifecycleRuleMapper">
+ <sql id="columns">id,rule_code,rule_name,owner_team,routing_config,version_status</sql>
+ <select id="findById" resultType="com.feedback.model.po.alert.AlertLifecycleRulePo">SELECT <include refid="columns"/> FROM t_alert_rule WHERE id=#{id}</select>
+ <select id="activeByCodes" resultType="com.feedback.model.po.alert.AlertLifecycleRulePo">SELECT <include refid="columns"/> FROM t_alert_rule WHERE version_status='ACTIVE' AND rule_code IN <foreach collection="codes" item="code" open="(" separator="," close=")">#{code}</foreach></select>
+</mapper>

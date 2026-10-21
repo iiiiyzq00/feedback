@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.applicationidentity.ApplicationIdentityPrimaryFactMapper">
+    <!-- 主问题影子事实只做有界批量读写与状态聚合，不参与在线归簇切换。 -->
+    <sql id="columns">
+        feedback_source_id,
+        application_identity_id,
+        BIN_TO_UUID(application_public_id_snapshot) application_public_id_snapshot,
+        application_display_name_snapshot,
+        application_mapping_version,
+        application_resolution_status,
+        classification_status,
+        resolution_rule_version,
+        resolution_reason_code,
+        resolved_alias_count
+    </sql>
+    <insert id="upsertAll">
+        INSERT INTO t_feedback_primary_problem_fact (
+            feedback_source_id,
+            application_identity_id,
+            application_public_id_snapshot,
+            application_display_name_snapshot,
+            application_mapping_version,
+            application_resolution_status,
+            classification_status,
+            resolution_rule_version,
+            resolution_reason_code,
+            resolved_alias_count,
+            created_at,
+            updated_at
+        )
+        VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (
+                #{row.feedbackSourceId},
+                #{row.applicationIdentityId},
+                <choose>
+                    <when test="row.applicationPublicIdSnapshot != null">
+                        UUID_TO_BIN(#{row.applicationPublicIdSnapshot})
+                    </when>
+                    <otherwise>NULL</otherwise>
+                </choose>,
+                #{row.applicationDisplayNameSnapshot},
+                #{row.applicationMappingVersion},
+                #{row.applicationResolutionStatus},
+                #{row.classificationStatus},
+                #{row.resolutionRuleVersion},
+                #{row.resolutionReasonCode},
+                #{row.resolvedAliasCount},
+                NOW(3),
+                NOW(3)
+            )
+        </foreach>
+        ON DUPLICATE KEY UPDATE
+            application_identity_id = VALUES(application_identity_id),
+            application_public_id_snapshot = VALUES(application_public_id_snapshot),
+            application_display_name_snapshot = VALUES(application_display_name_snapshot),
+            application_mapping_version = VALUES(application_mapping_version),
+            application_resolution_status = VALUES(application_resolution_status),
+            classification_status = VALUES(classification_status),
+            resolution_rule_version = VALUES(resolution_rule_version),
+            resolution_reason_code = VALUES(resolution_reason_code),
+            resolved_alias_count = VALUES(resolved_alias_count),
+            updated_at = NOW(3)
+    </insert>
+    <select id="findBySourceIds" resultType="com.feedback.model.po.applicationidentity.PrimaryProblemFactPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_feedback_primary_problem_fact
+        WHERE feedback_source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY feedback_source_id
+    </select>
+    <select id="countByResolutionStatus" resultType="com.feedback.model.po.applicationidentity.ApplicationResolutionCountPo">
+        SELECT
+            application_resolution_status resolution_status,
+            COUNT(*) item_count
+        FROM t_feedback_primary_problem_fact
+        GROUP BY application_resolution_status
+        ORDER BY application_resolution_status
+    </select>
+</mapper>

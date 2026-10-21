@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.integration.ClusteringIntegrationTestMapper">
+    <select id="countLiveClustersByNameKey" resultType="int">
+        SELECT COUNT(*)
+        FROM t_cluster
+        WHERE cluster_name_key = #{clusterNameKey}
+          AND cluster_status IN ('ACTIVE', 'MITIGATING', 'REOPENED', 'RESOLVED')
+    </select>
+
+    <select id="countLiveClustersByNormalizedName" resultType="int">
+        SELECT COUNT(*)
+        FROM t_cluster
+        WHERE cluster_name_key = SHA2(LOWER(#{clusterName}), 256)
+          AND cluster_status IN ('ACTIVE', 'MITIGATING', 'REOPENED', 'RESOLVED')
+    </select>
+
+    <select id="countAuditByOperation" resultType="int">
+        SELECT COUNT(*)
+        FROM t_system_audit_log
+        WHERE operation = #{operation}
+          AND target_id = #{targetId}
+    </select>
+
+    <select id="countHashedAudit" resultType="int">
+        SELECT COUNT(*)
+        FROM t_system_audit_log
+        WHERE target_type = #{targetType}
+          AND target_id = #{targetId}
+          AND chain_epoch = #{chainEpoch}
+          AND event_hash IS NOT NULL
+    </select>
+
+    <select id="countPendingIndexOutbox" resultType="int">
+        SELECT COUNT(*)
+        FROM t_ai_task
+        WHERE record_type = 'INDEX_OUTBOX'
+          AND source_id = #{sourceId}
+          AND task_status = 'PENDING'
+          AND snapshot_retention_until IS NOT NULL
+    </select>
+</mapper>

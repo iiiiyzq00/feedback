@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.detail.FeedbackDetailQualityMapper">
+    <select id="findBySourceId" resultType="com.feedback.model.po.feedback.detail.QualityDetailPo">
+        SELECT return_order_no, product_name, product_model, dispatch_date, activation_date, repair_region,
+               province, city, county, district, application_type_raw, exchange_request, return_reason,
+               fault_confirmed, fault_remark, merchant_return_apply_date, actual_shipping_date
+        FROM t_channel_quality WHERE source_id = #{sourceId}
+    </select>
+</mapper>
+

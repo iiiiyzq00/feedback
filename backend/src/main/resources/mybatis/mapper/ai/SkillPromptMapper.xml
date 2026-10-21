@@ -1,0 +1,328 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.ai.SkillPromptMapper">
+    <sql id="assetColumns">
+        id, record_type, skill_code, skill_name, skill_version, risk_level, lifecycle_status,
+        approval_status, input_schema, output_schema, created_at, created_by, is_current,
+        prompt_version, prompt_template, content_sha256, model_config, release_notes, published_at,
+        previous_prompt_version_id, rollout_percent, shadow_percent, skill_version_snapshot,
+        evaluation_summary, emergency_disabled
+    </sql>
+
+    <select id="promptByVersion" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+          AND prompt_version = #{version}
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+    <select id="latestPublishedSkillVersion" resultType="string">
+        SELECT skill_version
+        FROM t_ai_task
+        WHERE record_type = 'SKILL_DEF'
+          AND skill_code = #{skill}
+          AND lifecycle_status = 'PUBLISHED'
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+    <select id="currentPromptCount" resultType="long">
+        SELECT COUNT(*)
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+          AND is_current = TRUE
+    </select>
+    <insert id="insertPrompt" useGeneratedKeys="true" keyProperty="row.id">
+        INSERT INTO t_ai_task(
+            record_type, skill_code, prompt_version, prompt_template, model_config, is_current,
+            lifecycle_status, approval_status, content_sha256, release_notes, published_at,
+            approved_at, rollout_percent, skill_version_snapshot, created_by
+        ) VALUES (
+            'PROMPT_VERSION', #{row.skillCode}, #{row.promptVersion}, #{row.promptTemplate},
+            CAST(#{row.modelConfig} AS JSON), #{row.isCurrent}, #{row.lifecycleStatus},
+            #{row.approvalStatus}, #{row.contentSha256}, #{row.releaseNotes},
+            IF(#{row.bootstrap} AND #{row.isCurrent}, NOW(3), NULL),
+            IF(#{row.bootstrap} AND #{row.isCurrent}, NOW(3), NULL),
+            IF(#{row.isCurrent}, 100, 0), #{row.skillVersionSnapshot}, #{row.createdBy}
+        )
+    </insert>
+    <update id="updateBootstrapBaseline">
+        UPDATE t_ai_task
+        SET prompt_template = #{template},
+            model_config = CAST(#{model} AS JSON),
+            content_sha256 = #{sha},
+            release_notes = 'Git manifest baseline',
+            updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+    </update>
+    <select id="currentSkillCodes" resultType="string">
+        SELECT skill_code
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND is_current = TRUE
+          AND lifecycle_status = 'PUBLISHED'
+          AND emergency_disabled = FALSE
+    </select>
+    <select id="listSkills" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'SKILL_DEF'
+        ORDER BY skill_code, created_at DESC
+    </select>
+    <select id="listPrompts" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+        ORDER BY created_at DESC, id DESC
+    </select>
+    <select id="invocationStats" resultType="com.feedback.model.po.ai.SkillPromptInvocationStatsPo">
+        WITH base AS (
+            SELECT prompt_version,
+                   task_status,
+                   COALESCE(
+                       latency_ms,
+                       TIMESTAMPDIFF(MICROSECOND, created_at, COALESCE(completed_at, updated_at)) / 1000
+                   ) AS latency_ms,
+                   input_tokens,
+                   output_tokens,
+                   estimated_cost_usd
+            FROM t_ai_task
+            WHERE skill_code = #{skill}
+              AND record_type IN ('INVOCATION', 'ASSISTANT_QUERY')
+              AND created_at >= DATE_SUB(NOW(), INTERVAL #{days} DAY)
+        ), ranked AS (
+            SELECT base.prompt_version,
+                   base.task_status,
+                   base.latency_ms,
+                   base.input_tokens,
+                   base.output_tokens,
+                   base.estimated_cost_usd,
+                   ROW_NUMBER() OVER (PARTITION BY prompt_version ORDER BY latency_ms) AS rn,
+                   COUNT(*) OVER (PARTITION BY prompt_version) AS version_count
+            FROM base
+        )
+        SELECT prompt_version,
+               COUNT(*) AS invocation_count,
+               SUM(task_status IN ('COMPLETED', 'SUCCEEDED')) AS success_count,
+               SUM(task_status IN ('FAILED', 'RETRY_PENDING')) AS failure_count,
+               ROUND(AVG(latency_ms), 2) AS avg_latency_ms,
+               MAX(CASE WHEN rn = CEIL(version_count * 0.50) THEN latency_ms END) AS p50_latency_ms,
+               MAX(CASE WHEN rn = CEIL(version_count * 0.95) THEN latency_ms END) AS p95_latency_ms,
+               MAX(CASE WHEN rn = CEIL(version_count * 0.99) THEN latency_ms END) AS p99_latency_ms,
+               SUM(input_tokens) AS input_tokens,
+               SUM(output_tokens) AS output_tokens,
+               ROUND(SUM(estimated_cost_usd), 6) AS estimated_cost_usd
+        FROM ranked
+        GROUP BY prompt_version
+        ORDER BY invocation_count DESC
+    </select>
+    <insert id="insertSkill" useGeneratedKeys="true" keyProperty="row.id">
+        INSERT INTO t_ai_task(
+            record_type, skill_code, skill_name, skill_version, input_schema, output_schema,
+            risk_level, lifecycle_status, created_by
+        ) VALUES (
+            'SKILL_DEF', #{row.skillCode}, #{row.skillName}, #{row.skillVersion},
+            CAST(#{row.inputSchema} AS JSON), CAST(#{row.outputSchema} AS JSON),
+            #{row.riskLevel}, 'DRAFT', #{row.createdBy}
+        )
+    </insert>
+    <select id="currentSkill" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'SKILL_DEF'
+          AND skill_code = #{skill}
+          AND is_current = TRUE
+        LIMIT 1
+    </select>
+    <update id="markSkillTested">
+        UPDATE t_ai_task
+        SET lifecycle_status = 'TESTED', approval_status = 'PENDING', updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type = 'SKILL_DEF'
+    </update>
+    <select id="assetForApproval" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE id = #{id}
+          AND record_type IN ('SKILL_DEF', 'PROMPT_VERSION')
+        LIMIT 1
+    </select>
+    <update id="approve">
+        UPDATE t_ai_task
+        SET approval_status = 'APPROVED', approved_by = #{actor}, approved_at = NOW(3), updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type IN ('SKILL_DEF', 'PROMPT_VERSION')
+    </update>
+    <update id="retireCurrentSkill">
+        UPDATE t_ai_task
+        SET is_current = FALSE, lifecycle_status = 'RETIRED', retired_at = NOW(3), updated_at = NOW(3)
+        WHERE record_type = 'SKILL_DEF'
+          AND skill_code = #{skill}
+          AND is_current = TRUE
+    </update>
+    <update id="publishSkill">
+        UPDATE t_ai_task
+        SET is_current = TRUE, lifecycle_status = 'PUBLISHED', published_by = #{actor},
+            published_at = NOW(3), retired_at = NULL, updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type = 'SKILL_DEF'
+    </update>
+    <select id="rollbackSkill" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'SKILL_DEF'
+          AND skill_code = #{skill}
+          AND skill_version = #{version}
+          AND lifecycle_status IN ('PUBLISHED', 'RETIRED')
+    </select>
+    <update id="retireSkill">
+        UPDATE t_ai_task
+        SET lifecycle_status = 'RETIRED', is_current = FALSE, retired_at = NOW(3), updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type = 'SKILL_DEF'
+    </update>
+    <select id="prompt" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+        LIMIT 1
+    </select>
+    <update id="writeStructuralEvaluation">
+        UPDATE t_ai_task
+        SET evaluation_summary = CAST(#{summary} AS JSON), updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+          AND lifecycle_status = 'DRAFT'
+    </update>
+    <select id="currentPromptIdentity" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+          AND is_current = TRUE
+    </select>
+    <update id="retireCurrentPrompt">
+        UPDATE t_ai_task
+        SET is_current = FALSE, lifecycle_status = 'RETIRED', retired_at = NOW(3), updated_at = NOW(3)
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+          AND is_current = TRUE
+    </update>
+    <update id="publishPrompt">
+        UPDATE t_ai_task
+        SET is_current = TRUE,
+            lifecycle_status = 'PUBLISHED',
+            published_by = #{actor},
+            published_at = NOW(3),
+            retired_at = NULL,
+            previous_prompt_version_id = #{previous},
+            rollout_percent = IF(#{previous} IS NULL, 100, 0),
+            shadow_percent = 0,
+            updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+    </update>
+    <select id="rollbackPromptId" resultType="long">
+        SELECT id
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+          AND prompt_version = #{version}
+          AND lifecycle_status IN ('PUBLISHED', 'RETIRED')
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+    <update id="activateRollbackPrompt">
+        UPDATE t_ai_task
+        SET is_current = TRUE,
+            lifecycle_status = 'PUBLISHED',
+            published_by = #{actor},
+            published_at = NOW(3),
+            retired_at = NULL,
+            previous_prompt_version_id = #{previous},
+            rollout_percent = 100,
+            emergency_disabled = FALSE,
+            updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+    </update>
+    <update id="configureRollout">
+        UPDATE t_ai_task
+        SET rollout_percent = #{rollout}, shadow_percent = #{shadow}, updated_at = NOW(3)
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+          AND is_current = TRUE
+          AND lifecycle_status = 'PUBLISHED'
+    </update>
+    <update id="disableEmergencyPrompt">
+        UPDATE t_ai_task
+        SET is_current = FALSE,
+            lifecycle_status = 'RETIRED',
+            emergency_disabled = TRUE,
+            retired_at = NOW(3),
+            release_notes = LEFT(CONCAT(COALESCE(release_notes, ''), ' | emergency:', #{reason}), 500)
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+    </update>
+    <update id="activateEmergencyPrevious">
+        UPDATE t_ai_task
+        SET is_current = TRUE,
+            lifecycle_status = 'PUBLISHED',
+            emergency_disabled = FALSE,
+            retired_at = NULL,
+            published_at = NOW(3),
+            published_by = #{actor}
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+    </update>
+    <select id="currentPromptSelection" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+          AND is_current = TRUE
+          AND lifecycle_status = 'PUBLISHED'
+          AND emergency_disabled = FALSE
+    </select>
+    <select id="currentPromptRows" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+          AND is_current = TRUE
+          AND lifecycle_status = 'PUBLISHED'
+    </select>
+    <select id="versionPromptRows" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE record_type = 'PROMPT_VERSION'
+          AND skill_code = #{skill}
+          AND prompt_version = #{version}
+          AND lifecycle_status IN ('PUBLISHED', 'RETIRED')
+    </select>
+    <select id="publishedPromptById" resultType="com.feedback.model.po.ai.SkillPromptAssetPo">
+        SELECT <include refid="assetColumns"/>
+        FROM t_ai_task
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+          AND lifecycle_status IN ('PUBLISHED', 'RETIRED')
+        LIMIT 1
+    </select>
+    <update id="backfillSha">
+        UPDATE t_ai_task
+        SET content_sha256 = #{sha}
+        WHERE id = #{id}
+          AND record_type = 'PROMPT_VERSION'
+    </update>
+    <select id="skillCount" resultType="long">
+        SELECT COUNT(*)
+        FROM t_ai_task
+        WHERE record_type = 'SKILL_DEF'
+          AND skill_code = #{skill}
+    </select>
+</mapper>

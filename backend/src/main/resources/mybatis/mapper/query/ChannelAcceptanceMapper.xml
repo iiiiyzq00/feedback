@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.ChannelAcceptanceMapper">
+  <select id="findLatest" resultType="com.feedback.model.po.query.ChannelAcceptancePo">WITH ranked AS (
+    SELECT id,source_channel,acceptance_status,acceptance_comment,accepted_at,accepted_by,
+    ROW_NUMBER() OVER(PARTITION BY source_channel ORDER BY id DESC) rn FROM t_channel_acceptance)
+    SELECT id,source_channel,acceptance_status status,acceptance_comment comment,accepted_at,accepted_by
+    FROM ranked WHERE rn=1 ORDER BY source_channel</select>
+  <insert id="insert">INSERT INTO t_channel_acceptance(source_channel,acceptance_status,acceptance_comment,accepted_by)
+    VALUES(#{channel},#{status},#{comment},#{actor})</insert>
+</mapper>

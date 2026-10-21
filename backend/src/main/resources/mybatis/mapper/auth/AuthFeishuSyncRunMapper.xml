@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthFeishuSyncRunMapper">
+  <sql id="columns">
+    id,
+    run_status,
+    total_users,
+    changed_users,
+    disabled_users,
+    failed_users,
+    error_code,
+    requested_by,
+    started_at,
+    finished_at
+  </sql>
+
+  <select id="findLatest" resultType="com.feedback.model.po.auth.AuthFeishuSyncRunPo">
+    SELECT <include refid="columns"/>
+    FROM t_auth_feishu_sync_run
+    ORDER BY id DESC
+    LIMIT 1
+  </select>
+
+  <!-- MySQL 命名锁只保护“检查并创建运行记录”窗口，由事务完成回调负责释放。 -->
+  <select id="acquireStartLock" resultType="int">
+    SELECT GET_LOCK(#{lockName}, #{timeoutSeconds})
+  </select>
+
+  <select id="releaseStartLock" resultType="int">
+    SELECT RELEASE_LOCK(#{lockName})
+  </select>
+
+  <select id="findRunning" resultType="com.feedback.model.po.auth.AuthFeishuSyncRunPo">
+    SELECT <include refid="columns"/>
+    FROM t_auth_feishu_sync_run
+    WHERE run_status = 'RUNNING'
+    ORDER BY id
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_auth_feishu_sync_run (
+      run_status,
+      trigger_type,
+      requested_by
+    ) VALUES (
+      #{runStatus},
+      'MANUAL',
+      #{requestedBy}
+    )
+  </insert>
+
+  <!-- 仅仍处于 RUNNING 的旧记录可被标记为过期失败，避免覆盖已经完成的同步。 -->
+  <update id="expireRunning">
+    UPDATE t_auth_feishu_sync_run
+    SET run_status = 'FAILED',
+        error_code = #{errorCode},
+        finished_at = NOW(3)
+    WHERE id = #{id}
+      AND run_status = 'RUNNING'
+  </update>
+
+  <update id="finish">
+    UPDATE t_auth_feishu_sync_run
+    SET run_status = #{status},
+        total_users = #{total},
+        changed_users = #{changed},
+        disabled_users = #{disabled},
+        failed_users = #{failed},
+        error_code = #{errorCode},
+        finished_at = NOW(3)
+    WHERE id = #{id}
+  </update>
+</mapper>

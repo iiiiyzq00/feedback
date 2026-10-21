@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingRecoveryImportRowMapper">
+  <update id="requeueLegacyReviews">UPDATE t_import_row SET row_status='PENDING',quality_stage='MASKING_RETRY',
+    quality_error_code=NULL,quality_error_summary=NULL,quality_suggestion=NULL
+    WHERE row_status='REVIEW_NEEDED' AND raw_retention_until&gt;NOW(3) AND raw_deleted_at IS NULL</update>
+  <select id="findRetryBatchIdsAfter" resultType="long">SELECT DISTINCT batch_id FROM t_import_row
+    WHERE row_status='PENDING' AND quality_stage='MASKING_RETRY' AND batch_id&gt;#{afterId}
+    ORDER BY batch_id LIMIT #{limit}</select>
+</mapper>

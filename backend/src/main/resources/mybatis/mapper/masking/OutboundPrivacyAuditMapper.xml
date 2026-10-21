@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.OutboundPrivacyAuditMapper">
+  <insert id="insertReject">INSERT INTO t_system_audit_log(operation,audit_class,outcome,target_type,target_id,
+    operation_detail,event_time) VALUES('OUTBOUND_PRIVACY_REJECT','SECURITY','DENIED',#{target},#{targetId},
+    JSON_OBJECT('ruleVersion',#{version},'findingTypes',CAST(#{typesJson} AS JSON),'fieldCount',#{fieldCount}),NOW(3))</insert>
+  <insert id="insertOverride">INSERT INTO t_system_audit_log(operation,audit_class,outcome,target_type,target_id,
+    operation_detail,event_time) VALUES('OUTBOUND_PRIVACY_HUMAN_OVERRIDE','SECURITY','SUCCESS','FEEDBACK_SOURCE',
+    CAST(#{sourceId} AS CHAR),JSON_OBJECT('ruleVersion',#{version},'binding','CONTENT_SHA256'),NOW(3))</insert>
+</mapper>

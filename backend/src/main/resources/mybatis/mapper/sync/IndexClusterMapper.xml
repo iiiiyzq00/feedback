@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sync.IndexClusterMapper">
+  <select id="countPending" resultType="long">SELECT COUNT(*) FROM t_cluster
+    WHERE COALESCE(search_index_status,'PENDING')&lt;&gt;'SYNCED'
+    OR COALESCE(vector_index_status,'PENDING')&lt;&gt;'SYNCED'</select>
+  <sql id="columns">id,cluster_name,canonical_symptom,function_module,issue_category,cluster_status,
+    search_index_status,vector_index_status,index_masking_rule_version,updated_at</sql>
+  <select id="findAfter" resultType="com.feedback.model.po.sync.IndexClusterPo">SELECT <include refid="columns"/>
+    FROM t_cluster WHERE id&gt;#{afterId} ORDER BY id LIMIT #{limit}</select>
+  <select id="findById" resultType="com.feedback.model.po.sync.IndexClusterPo">SELECT <include refid="columns"/>
+    FROM t_cluster WHERE id=#{id}</select>
+  <update id="markSearchSynced">UPDATE t_cluster SET search_index_status='SYNCED' WHERE id=#{id}</update>
+  <update id="markVectorSynced">UPDATE t_cluster SET vector_index_status='SYNCED',index_masking_rule_version=#{ruleVersion}
+    WHERE id=#{id}</update>
+  <update id="markVectorUnavailable">UPDATE t_cluster SET vector_index_status='FAILED',index_masking_rule_version=#{ruleVersion}
+    WHERE id=#{id}</update>
+  <update id="markDeleted">UPDATE t_cluster SET search_index_status='SYNCED',vector_index_status=#{vectorStatus}
+    WHERE id=#{id}</update>
+</mapper>

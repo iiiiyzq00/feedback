@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sdk.SdkProcessingEnvelopeMapper">
+    <sql id="processingColumns">
+        id,receipt_id,client_feedback_id,app_id,app_version,package_name,function_module,issue_type,
+        source_event_time,os_version,network_type,trigger_type,encrypted_data_key,payload_nonce,payload_ciphertext,
+        payload_tag,contact_nonce,contact_ciphertext,contact_tag,contact_allowed,body_processing_status,
+        contact_processing_status,urgency_class,key_id,algorithm_version,schema_version,request_sha256,request_size_bytes,
+        ingest_status,disposition_status,retry_count,next_retry_at,last_error_code,last_error_detail,feedback_source_id,
+        ciphertext_deleted_at,retention_until,received_at,processed_at
+    </sql>
+
+    <select id="findById" resultType="com.feedback.model.po.sdk.SdkProcessingEnvelopePo">
+        SELECT <include refid="processingColumns"/> FROM t_sdk_ingest WHERE id=#{id}
+    </select>
+
+    <select id="findByBusinessKey" resultType="com.feedback.model.po.sdk.SdkProcessingEnvelopePo">
+        SELECT <include refid="processingColumns"/> FROM t_sdk_ingest
+        WHERE app_id=#{appId} AND client_feedback_id=#{clientFeedbackId}
+    </select>
+
+    <select id="findByReceiptId" resultType="com.feedback.model.po.sdk.SdkProcessingEnvelopePo">
+        SELECT <include refid="processingColumns"/> FROM t_sdk_ingest WHERE receipt_id=#{receiptId}
+    </select>
+
+    <select id="findPending" resultType="com.feedback.model.po.sdk.SdkProcessingEnvelopePo">
+        SELECT <include refid="processingColumns"/> FROM t_sdk_ingest
+        WHERE ingest_status IN ('RECEIVED','RETRY_PENDING')
+          AND (next_retry_at IS NULL OR next_retry_at&lt;=CURRENT_TIMESTAMP(3))
+        ORDER BY urgency_class DESC,received_at ASC,id ASC LIMIT #{limit}
+    </select>
+
+    <select id="findBySourceIds" resultType="com.feedback.model.po.sdk.SdkProcessingEnvelopePo">
+        SELECT <include refid="processingColumns"/> FROM t_sdk_ingest WHERE feedback_source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">
+            #{sourceId}
+        </foreach>
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_sdk_ingest(
+          receipt_id,client_feedback_id,app_id,app_version,package_name,function_module,issue_type,source_event_time,
+          os_version,network_type,trigger_type,encrypted_data_key,payload_nonce,payload_ciphertext,payload_tag,
+          contact_nonce,contact_ciphertext,contact_tag,contact_allowed,body_processing_status,contact_processing_status,
+          urgency_class,key_id,algorithm_version,schema_version,request_sha256,request_size_bytes,ingest_status,
+          disposition_status,retry_count,retention_until,received_at)
+        VALUES(
+          #{receiptId},#{clientFeedbackId},#{appId},#{appVersion},#{packageName},#{functionModule},#{issueType},#{sourceEventTime},
+          #{osVersion},#{networkType},#{triggerType},#{encryptedDataKey},#{payloadNonce},#{payloadCiphertext},#{payloadTag},
+          #{contactNonce},#{contactCiphertext},#{contactTag},#{contactAllowed},#{bodyProcessingStatus},#{contactProcessingStatus},
+          #{urgencyClass},#{keyId},#{algorithmVersion},#{schemaVersion},#{requestSha256},#{requestSizeBytes},#{ingestStatus},
+          #{dispositionStatus},#{retryCount},#{retentionUntil},#{receivedAt})
+    </insert>
+
+    <update id="updateProcessingState">
+        UPDATE t_sdk_ingest SET
+          contact_nonce=#{contactNonce},contact_ciphertext=#{contactCiphertext},contact_tag=#{contactTag},
+          body_processing_status=#{bodyProcessingStatus},contact_processing_status=#{contactProcessingStatus},
+          ingest_status=#{ingestStatus},disposition_status=#{dispositionStatus},retry_count=#{retryCount},
+          next_retry_at=#{nextRetryAt},last_error_code=#{lastErrorCode},last_error_detail=#{lastErrorDetail},
+          feedback_source_id=#{feedbackSourceId},retention_until=#{retentionUntil},processed_at=#{processedAt}
+        WHERE id=#{id}
+    </update>
+</mapper>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertMetricOccurrenceMapper">
+ <select id="notificationFailureRate" resultType="double">SELECT COALESCE(100*SUM(delivery_status='FAILED')/NULLIF(COUNT(*),0),0) FROM t_alert_occurrence WHERE occurrence_type='DELIVERY_ATTEMPT' AND evaluation_time&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="sdkCount" resultType="double">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="sdkFailureRate" resultType="double">SELECT COALESCE(100*SUM(fact_status&lt;&gt;'SUCCESS')/NULLIF(COUNT(*),0),0) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="sdkNonRateLimitFailureRate" resultType="double">SELECT COALESCE(100*SUM(fact_status NOT IN ('SUCCESS','RATE_LIMITED'))/NULLIF(COUNT(*),0),0) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="sdkRateLimitRate" resultType="double">SELECT COALESCE(100*SUM(fact_status='RATE_LIMITED')/NULLIF(COUNT(*),0),0) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="sdkVolume30m" resultType="double">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=DATE_SUB(NOW(),INTERVAL 30 MINUTE)</select>
+ <select id="openIdempotencyConflicts" resultType="double">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='IDEMPOTENCY_CONFLICT' AND fact_status='OPEN'</select>
+ <select id="sdkCountBetween" resultType="double">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=#{start} AND evaluation_time&lt;#{end}</select>
+ <select id="sdkNonRateLimitFailureBetween" resultType="double">SELECT COALESCE(100*SUM(fact_status NOT IN ('SUCCESS','RATE_LIMITED'))/NULLIF(COUNT(*),0),0) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=#{start} AND evaluation_time&lt;#{end}</select>
+ <select id="sdkRateLimitBetween" resultType="double">SELECT COALESCE(100*SUM(fact_status='RATE_LIMITED')/NULLIF(COUNT(*),0),0) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=#{start} AND evaluation_time&lt;#{end}</select>
+ <select id="sdkVolumeBefore" resultType="double">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='SDK_REQUEST' AND evaluation_time&gt;=DATE_SUB(#{end},INTERVAL 30 MINUTE) AND evaluation_time&lt;#{end}</select>
+ <select id="openIdempotencyBetween" resultType="double">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='IDEMPOTENCY_CONFLICT' AND fact_status='OPEN' AND evaluation_time&gt;=#{start} AND evaluation_time&lt;#{end}</select>
+</mapper>

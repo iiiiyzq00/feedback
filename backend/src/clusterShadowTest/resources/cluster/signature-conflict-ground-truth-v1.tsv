@@ -1,0 +1,13 @@
+# dataset_version=signature-conflict-ground-truth-v1
+# provenance=synthetic_boundary_contract
+# contains_personal_data=false
+pair_id	left_text	right_text	label
+SIG01	视频播放失败，错误码 APP-100	视频播放失败，错误码 APP-200	DIFFERENT_ERROR_SIGNATURE
+SIG02	打开课程时应用闪退，错误码 APP-101	打开课程时应用闪退，错误码 APP-102	DIFFERENT_ERROR_SIGNATURE
+SIG03	播放视频时卡死，HTTP 500	播放视频时卡死，HTTP 503	DIFFERENT_ERROR_SIGNATURE
+SIG04	打开课程时应用闪退，NullPointerException	打开课程时应用闪退，IllegalStateException	DIFFERENT_ERROR_SIGNATURE
+SIG05	提交作业失败，ANR	提交作业失败，WATCHDOG	DIFFERENT_ERROR_SIGNATURE
+SIG06	上传作业失败，SIGABRT	上传作业失败，SIGSEGV	DIFFERENT_ERROR_SIGNATURE
+SIG07	下载课程失败，错误码 DL-100	下载课程失败，错误码 DL-101	DIFFERENT_ERROR_SIGNATURE
+SIG08	登录页面进不去，HTTP 401	登录页面进不去，HTTP 403	DIFFERENT_ERROR_SIGNATURE
+

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertRuleManagementMapper">
+ <select id="list" resultType="com.feedback.model.po.alert.AlertRuleListPo">SELECT id,rule_code,rule_name name,category,default_severity level,is_enabled enabled,version_status,trigger_expression,recovery_expression,routing_config,cooldown_minutes,version,owner_team,priority FROM t_alert_rule WHERE version_status IN ('ACTIVE','SHADOW') ORDER BY priority,id</select>
+ <select id="nextPriority" resultType="int">SELECT COALESCE(MAX(priority),0)+10 FROM t_alert_rule WHERE version_status='ACTIVE'</select>
+ <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_alert_rule(rule_code,rule_name,category,owner_team,priority,version,version_status,default_severity,trigger_expression,recovery_expression,routing_config,cooldown_minutes,is_enabled) VALUES(#{row.ruleCode},#{row.name},'BUSINESS',#{row.ownerTeam},#{row.priority},#{row.version},'ACTIVE',#{row.level},CAST(#{row.triggerExpression} AS JSON),CAST(#{row.recoveryExpression} AS JSON),CAST(#{row.routingConfig} AS JSON),#{row.cooldownMinutes},#{row.enabled})</insert>
+ <select id="lockActive" resultType="com.feedback.model.po.alert.AlertRuleLockedPo">SELECT rule_code,version,is_enabled enabled,priority FROM t_alert_rule WHERE id=#{id} AND version_status='ACTIVE' FOR UPDATE</select>
+ <update id="retire">UPDATE t_alert_rule SET version_status='RETIRED' WHERE id=#{id} AND version_status='ACTIVE'</update>
+ <update id="toggle">UPDATE t_alert_rule SET is_enabled=#{enabled} WHERE id=#{id} AND version_status='ACTIVE'</update>
+ <select id="lockActiveIds" resultType="long">SELECT id FROM t_alert_rule WHERE version_status='ACTIVE' AND id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> FOR UPDATE</select>
+ <update id="reorder">UPDATE t_alert_rule SET priority=CASE id <foreach collection="rows" item="row">WHEN #{row.id} THEN #{row.priority}</foreach> END WHERE id IN <foreach collection="rows" item="row" open="(" separator="," close=")">#{row.id}</foreach></update>
+ <select id="ruleCode" resultType="string">SELECT rule_code FROM t_alert_rule WHERE id=#{id}</select>
+ <select id="testRules" resultType="com.feedback.model.po.alert.AlertRuleTestRulePo">SELECT id,rule_code,rule_name FROM t_alert_rule WHERE id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+</mapper>

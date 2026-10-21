@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.attachment.AttachmentGrantMapper">
+    <!-- fingerprint 是原始随机令牌的 SHA-256，accessReason 是原因摘要/长度；授权表不得持久化任一原文。 -->
+    <insert id="insert">
+        INSERT INTO t_authorized_contact_vault(
+            ingest_id, source_id, contact_type, fingerprint, fingerprint_key_id,
+            is_authorized, expires_at, attachment_id, user_id, access_reason
+        ) VALUES (
+            #{attachmentId}, #{sourceId}, 'ATTACHMENT_GRANT', #{fingerprint}, 'SHA-256',
+            1, #{expiresAt}, #{attachmentId}, #{userId}, #{accessReason}
+        )
+    </insert>
+
+    <!-- 完整绑定用户、反馈和附件并锁定唯一可消费行；过期、撤销、已消费均不返回。 -->
+    <select id="lockConsumableId" resultType="long">
+        SELECT id
+        FROM t_authorized_contact_vault
+        WHERE contact_type = 'ATTACHMENT_GRANT'
+          AND fingerprint = #{fingerprint}
+          AND attachment_id = #{attachmentId}
+          AND source_id = #{sourceId}
+          AND user_id = #{userId}
+          AND (
+            (#{purpose} = 'INLINE_VIEW' AND access_reason NOT LIKE 'ORIGINAL_LOG_DOWNLOAD|%'
+              AND access_reason NOT LIKE 'DERIVED_PREVIEW|%')
+            OR (#{purpose} = 'DERIVED_PREVIEW' AND access_reason LIKE 'DERIVED_PREVIEW|%')
+            OR (#{purpose} = 'ORIGINAL_LOG_DOWNLOAD' AND access_reason LIKE 'ORIGINAL_LOG_DOWNLOAD|%')
+          )
+          AND consumed_at IS NULL
+          AND revoked_at IS NULL
+          AND expires_at &gt; CURRENT_TIMESTAMP(3)
+        FOR UPDATE
+    </select>
+
+    <!-- 锁后再次检查有效状态；受影响行数为 0 时调用方按并发或状态变化失败关闭。 -->
+    <update id="markConsumed">
+        UPDATE t_authorized_contact_vault
+        SET consumed_at = CURRENT_TIMESTAMP(3), updated_at = CURRENT_TIMESTAMP(3)
+        WHERE id = #{grantId}
+          AND contact_type = 'ATTACHMENT_GRANT'
+          AND consumed_at IS NULL
+          AND revoked_at IS NULL
+          AND expires_at &gt; CURRENT_TIMESTAMP(3)
+    </update>
+</mapper>

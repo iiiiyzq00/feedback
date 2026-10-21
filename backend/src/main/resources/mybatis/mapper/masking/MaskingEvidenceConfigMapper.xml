@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingEvidenceConfigMapper">
+  <sql id="columns">id,CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.legacyId')) AS UNSIGNED) legacy_id,
+    config_version,config_subtype,record_status,approval_status,scope_key,record_version,source_config_id,
+    subject_user_id,secondary_user_id,effective_from,effective_to,created_at,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.storageReference')) storage_reference,
+    CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.positiveCount')) AS UNSIGNED) positive_count,
+    CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.negativeCount')) AS UNSIGNED) negative_count,
+    CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.boundaryCount')) AS UNSIGNED) boundary_count,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.piiApprovalReference')) pii_approval_reference,
+    CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.reviewedBy')) AS UNSIGNED) reviewed_by,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.nerF1')) ner_f1,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.endToEndF1')) end_to_end_f1,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.highRiskRecall')) high_risk_recall,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.falseMaskingRate')) false_masking_rate,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.executionLogSha256')) execution_log_sha256,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.failureSummarySha256')) failure_summary_sha256,
+    JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.approvedAt')) approved_at</sql>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_system_config(config_key,config_type,
+    config_version,config_value,config_schema_version,lifecycle_status,approval_status,scope_key,config_subtype,
+    subject_user_id,record_status,record_version,source_config_id,effective_from,effective_to,is_active,created_by)
+    VALUES(CONCAT(#{row.configType},'_TMP:',UUID()),#{row.configType},#{row.configVersion},
+    CAST(#{row.configValueJson} AS JSON),CASE WHEN #{row.configType}='MASKING_RUN' THEN 'masking-run-v1' ELSE 'masking-dataset-v1' END,
+    'ACTIVE','PENDING',#{row.scopeKey},#{row.configSubtype},#{row.subjectUserId},#{row.recordStatus},#{row.recordVersion},
+    #{row.sourceConfigId},CASE WHEN #{row.configType}='MASKING_RUN' THEN NOW(3) ELSE NULL END,#{row.effectiveTo},0,#{row.createdBy})</insert>
+  <update id="finalizeKey">UPDATE t_system_config SET config_key=CONCAT(#{prefix},id) WHERE id=#{id}</update>
+  <update id="reviewDataset">UPDATE t_system_config SET record_status='REVIEWED',
+    config_value=JSON_SET(config_value,'$.reviewedBy',#{actor},'$.reviewedAt',NOW(3)),updated_at=NOW(3)
+    WHERE config_type='MASKING_DATASET' AND config_version=#{version} AND record_status='REGISTERED'
+    AND subject_user_id&lt;&gt;#{actor} AND effective_to&gt;NOW(3)</update>
+  <update id="approveDataset">UPDATE t_system_config SET record_status='APPROVED',approval_status='APPROVED',
+    secondary_user_id=#{actor},config_value=JSON_SET(config_value,'$.approvedAt',NOW(3)),updated_at=NOW(3)
+    WHERE config_type='MASKING_DATASET' AND config_version=#{version} AND record_status='REVIEWED'
+    AND subject_user_id&lt;&gt;#{actor} AND CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.reviewedBy')) AS UNSIGNED)&lt;&gt;#{actor}
+    AND effective_to&gt;NOW(3)</update>
+  <select id="findDatasets" resultType="com.feedback.model.po.masking.MaskingEvidenceConfigPo">SELECT <include refid="columns"/>
+    FROM t_system_config WHERE config_type='MASKING_DATASET' ORDER BY id DESC</select>
+  <select id="lockRelease" resultType="com.feedback.model.po.masking.MaskingEvidenceConfigPo">SELECT <include refid="columns"/>
+    FROM t_system_config WHERE config_type='MASKING_RELEASE' AND config_version=#{version} FOR UPDATE</select>
+  <select id="findLiveDataset" resultType="com.feedback.model.po.masking.MaskingEvidenceConfigPo">SELECT <include refid="columns"/>
+    FROM t_system_config WHERE config_type='MASKING_DATASET' AND config_version=#{version} AND effective_to&gt;NOW(3)</select>
+  <select id="countRun" resultType="int">SELECT COUNT(*) FROM t_system_config WHERE config_type='MASKING_RUN'
+    AND source_config_id=#{releaseId} AND record_version=#{datasetId} AND config_version=#{engineVersion}</select>
+  <select id="lockRun" resultType="com.feedback.model.po.masking.MaskingEvidenceConfigPo">SELECT <include refid="columns"/>
+    FROM t_system_config WHERE config_type='MASKING_RUN' AND config_key=CONCAT('MASKING_RUN:',#{runId}) FOR UPDATE</select>
+  <select id="findDatasetsByBusinessIds" resultType="com.feedback.model.po.masking.MaskingEvidenceConfigPo">SELECT <include refid="columns"/>
+    FROM t_system_config WHERE config_type='MASKING_DATASET' AND COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.legacyId')) AS UNSIGNED),id) IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+  <select id="findByBusinessId" resultType="com.feedback.model.po.masking.MaskingEvidenceConfigPo">SELECT <include refid="columns"/>
+    FROM t_system_config WHERE config_type=#{configType}
+    AND COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.legacyId')) AS UNSIGNED),id)=#{id}</select>
+  <update id="approveRun">UPDATE t_system_config SET record_status='APPROVED',approval_status='APPROVED',
+    secondary_user_id=#{actor},config_desc=#{reason},config_value=JSON_SET(config_value,'$.approvedAt',NOW(3)),updated_at=NOW(3)
+    WHERE id=#{id} AND config_type='MASKING_RUN'</update>
+  <update id="evaluateRelease">UPDATE t_system_config SET record_status='EVALUATED',record_version=#{runId},
+    config_value=JSON_SET(config_value,'$.evaluationAuditId',#{auditId},'$.evaluationApprovedBy',#{actor}),updated_at=NOW(3)
+    WHERE id=#{id} AND config_type='MASKING_RELEASE' AND record_status='DRAFT'</update>
+  <select id="findRuns" resultType="com.feedback.model.po.masking.MaskingEvidenceConfigPo">SELECT <include refid="columns"/>
+    FROM t_system_config WHERE config_type='MASKING_RUN' AND scope_key=#{version} ORDER BY id DESC</select>
+  <update id="expireDatasets">UPDATE t_system_config SET record_status='EXPIRED',lifecycle_status='EXPIRED',is_active=0,
+    updated_at=NOW(3) WHERE config_type='MASKING_DATASET' AND record_status IN ('REGISTERED','REVIEWED','APPROVED')
+    AND effective_to&lt;=NOW(3)</update>
+</mapper>

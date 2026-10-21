@@ -1,0 +1,4 @@
+interface:
+  display_name: "压缩项目上下文"
+  short_description: "压缩长任务上下文并生成可继续执行且保留关键约束的最小交接摘要"
+  default_prompt: "Use $compact-project-context to compact this task into a minimal executable handoff."

@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.IdempotencyConflictMapper">
+  <insert id="insert">INSERT IGNORE INTO t_alert_occurrence(occurrence_type,metric_code,dimension_key,
+    source_entity_id,related_entity_id,source_row_id,fact_status,fact_key,evaluation_snapshot,evaluation_time)
+    VALUES('IDEMPOTENCY_CONFLICT','MISSING_MONOTONIC_UPDATE_TIME',#{row.channel},#{row.sourceId},#{row.batchId},#{row.rowId},
+    'OPEN',SHA2(CONCAT(#{row.channel},CHAR(31),#{row.recordHash}),256),JSON_OBJECT('importBatchId',#{row.batchId},
+    'importRowId',#{row.rowId},'existingSourceId',#{row.sourceId},'existingFingerprintHash',#{row.existingHash},
+    'incomingFingerprintHash',#{row.incomingHash}),NOW(3))</insert>
+  <select id="find" resultType="com.feedback.model.po.alert.IdempotencyConflictPo">SELECT
+    COALESCE(legacy_source_id,id) id,dimension_key source_channel,related_entity_id import_batch_id,
+    source_row_id import_row_id,source_entity_id existing_source_id,metric_code reason,fact_status status,
+    resolution_action,resolution_note,evaluation_time occurred_at,resolved_at,resolved_by
+    FROM t_alert_occurrence WHERE occurrence_type='IDEMPOTENCY_CONFLICT'
+    <if test="status != null">AND fact_status=#{status}</if> ORDER BY id DESC LIMIT 200</select>
+  <update id="resolve">UPDATE t_alert_occurrence SET fact_status=#{status},resolution_action=#{action},
+    resolution_note=#{note},resolved_by=#{actor},resolved_at=NOW(3) WHERE occurrence_type='IDEMPOTENCY_CONFLICT'
+    AND COALESCE(legacy_source_id,id)=#{id} AND fact_status='OPEN'</update>
+</mapper>

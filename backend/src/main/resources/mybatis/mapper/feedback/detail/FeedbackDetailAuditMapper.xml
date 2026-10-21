@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.detail.FeedbackDetailAuditMapper">
+    <!-- 单反馈字段转换历史按业务事件时间（缺失时创建时间）和 ID 稳定正序；当前不隐式截断。 -->
+    <select id="findFieldHistory" resultType="com.feedback.model.po.feedback.detail.FeedbackFieldHistoryPo">
+        SELECT id, operation_detail, user_id, event_time, created_at
+        FROM t_system_audit_log
+        WHERE operation = 'FIELD_CONVERSION' AND target_type = 'FEEDBACK'
+          AND target_id = CAST(#{targetId} AS CHAR) COLLATE utf8mb4_0900_as_cs
+        ORDER BY COALESCE(event_time, created_at), id
+    </select>
+    <!-- 详情或外链用例与该写入处于同一事务；必须恰好写入一行后调用方才能返回。 -->
+    <insert id="insertAccessAudit">
+        INSERT INTO t_system_audit_log(user_id, operation, target_type, target_id, operation_detail)
+        VALUES(#{userId}, #{operation}, #{targetType}, #{targetId}, CAST(#{detailJson} AS JSON))
+    </insert>
+</mapper>
+

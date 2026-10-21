@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListProjectionMapper">
+    <insert id="upsertAll">
+        INSERT INTO t_phase_one_feedback_list_projection(
+          generation_id,source_id,source_channel,source_record_id,app_version,package_name,province_code,city_code,
+          import_batch_id,import_batch_code,jira_import_batch_codes,title,description,function_module,problem_type,
+          issue_category,severity_level,ai_severity,ai_review_status,user_sentiment,reproducibility,processing_status,
+          distribution_status,owner_user_id,handoff_pending,fault_occurred_at,source_event_time,reported_at,
+          fault_time_precision,fault_time_source,fault_time_resolution,source_update_time,platform_update_time,ingest_time,
+          attachment_count,screenshot_count,log_count,video_count,channel_app_id,channel_package_name,channel_device_model,
+          channel_os_version,channel_network_type,jira_key,jira_issue_type,jira_status,jira_priority,jira_project_key,
+          jira_assignee,jira_resolution,jira_resolved_at,quality_repair_region,quality_application_type,
+          quality_exchange_request,redblack_source_platform,redblack_keyword,redblack_list_type,station_product_id,
+          station_app_id,station_source_platform,station_source_sub_channel,station_api_version,channel_meta_json,
+          diagnostic_types
+        ) VALUES
+        <foreach collection="rows" item="row" separator=",">
+        (
+          #{row.generationId},#{row.sourceId},#{row.sourceChannel},#{row.sourceRecordId},#{row.appVersion},#{row.packageName},
+          #{row.provinceCode},#{row.cityCode},#{row.importBatchId},#{row.importBatchCode},CAST(#{row.jiraImportBatchCodes} AS JSON),
+          #{row.title},#{row.description},#{row.functionModule},#{row.problemType},#{row.issueCategory},#{row.severityLevel},
+          #{row.aiSeverity},#{row.aiReviewStatus},#{row.userSentiment},#{row.reproducibility},#{row.processingStatus},
+          #{row.distributionStatus},#{row.ownerUserId},#{row.handoffPending},#{row.faultOccurredAt},
+          #{row.sourceEventTime},#{row.reportedAt},#{row.faultTimePrecision},#{row.faultTimeSource},#{row.faultTimeResolution},
+          #{row.sourceUpdateTime},#{row.platformUpdateTime},#{row.ingestTime},#{row.attachmentCount},#{row.screenshotCount},
+          #{row.logCount},#{row.videoCount},#{row.channelAppId},#{row.channelPackageName},#{row.channelDeviceModel},
+          #{row.channelOsVersion},#{row.channelNetworkType},#{row.jiraKey},#{row.jiraIssueType},#{row.jiraStatus},
+          #{row.jiraPriority},#{row.jiraProjectKey},#{row.jiraAssignee},#{row.jiraResolution},#{row.jiraResolvedAt},
+          #{row.qualityRepairRegion},#{row.qualityApplicationType},#{row.qualityExchangeRequest},
+          #{row.redblackSourcePlatform},#{row.redblackKeyword},#{row.redblackListType},#{row.stationProductId},
+          #{row.stationAppId},#{row.stationSourcePlatform},#{row.stationSourceSubChannel},#{row.stationApiVersion},
+          CAST(#{row.channelMetaJson} AS JSON),CAST(#{row.diagnosticTypes} AS JSON)
+        )
+        </foreach>
+        AS incoming
+        ON DUPLICATE KEY UPDATE
+          source_channel=incoming.source_channel,source_record_id=incoming.source_record_id,app_version=incoming.app_version,
+          package_name=incoming.package_name,province_code=incoming.province_code,city_code=incoming.city_code,
+          import_batch_id=incoming.import_batch_id,import_batch_code=incoming.import_batch_code,
+          jira_import_batch_codes=incoming.jira_import_batch_codes,title=incoming.title,description=incoming.description,
+          function_module=incoming.function_module,problem_type=incoming.problem_type,issue_category=incoming.issue_category,
+          severity_level=incoming.severity_level,ai_severity=incoming.ai_severity,ai_review_status=incoming.ai_review_status,
+          user_sentiment=incoming.user_sentiment,reproducibility=incoming.reproducibility,
+          processing_status=incoming.processing_status,distribution_status=incoming.distribution_status,
+          owner_user_id=incoming.owner_user_id,handoff_pending=incoming.handoff_pending,
+          fault_occurred_at=incoming.fault_occurred_at,source_event_time=incoming.source_event_time,reported_at=incoming.reported_at,
+          fault_time_precision=incoming.fault_time_precision,fault_time_source=incoming.fault_time_source,
+          fault_time_resolution=incoming.fault_time_resolution,source_update_time=incoming.source_update_time,
+          platform_update_time=incoming.platform_update_time,ingest_time=incoming.ingest_time,
+          attachment_count=incoming.attachment_count,screenshot_count=incoming.screenshot_count,
+          log_count=incoming.log_count,video_count=incoming.video_count,channel_app_id=incoming.channel_app_id,
+          channel_package_name=incoming.channel_package_name,channel_device_model=incoming.channel_device_model,
+          channel_os_version=incoming.channel_os_version,channel_network_type=incoming.channel_network_type,
+          jira_key=incoming.jira_key,jira_issue_type=incoming.jira_issue_type,jira_status=incoming.jira_status,
+          jira_priority=incoming.jira_priority,jira_project_key=incoming.jira_project_key,jira_assignee=incoming.jira_assignee,
+          jira_resolution=incoming.jira_resolution,jira_resolved_at=incoming.jira_resolved_at,
+          quality_repair_region=incoming.quality_repair_region,quality_application_type=incoming.quality_application_type,
+          quality_exchange_request=incoming.quality_exchange_request,redblack_source_platform=incoming.redblack_source_platform,
+          redblack_keyword=incoming.redblack_keyword,redblack_list_type=incoming.redblack_list_type,
+          station_product_id=incoming.station_product_id,station_app_id=incoming.station_app_id,
+          station_source_platform=incoming.station_source_platform,station_source_sub_channel=incoming.station_source_sub_channel,
+          station_api_version=incoming.station_api_version,channel_meta_json=incoming.channel_meta_json,
+          diagnostic_types=incoming.diagnostic_types,projected_at=CURRENT_TIMESTAMP(3)
+    </insert>
+    <delete id="deleteBySourceIds">
+        DELETE FROM t_phase_one_feedback_list_projection
+        WHERE generation_id=#{generationId} AND source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+    </delete>
+    <select id="findAfterSourceId" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListProjectionPo">
+        SELECT generation_id,source_id,source_channel,source_record_id,app_version,package_name,province_code,city_code,
+               import_batch_id,import_batch_code,jira_import_batch_codes,title,description,function_module,problem_type,
+               issue_category,severity_level,ai_severity,ai_review_status,user_sentiment,reproducibility,processing_status,
+               distribution_status,owner_user_id,handoff_pending,fault_occurred_at,source_event_time,reported_at,
+               fault_time_precision,fault_time_source,fault_time_resolution,source_update_time,platform_update_time,ingest_time,
+               attachment_count,screenshot_count,log_count,video_count,channel_app_id,channel_package_name,channel_device_model,
+               channel_os_version,channel_network_type,jira_key,jira_issue_type,jira_status,jira_priority,jira_project_key,
+               jira_assignee,jira_resolution,jira_resolved_at,quality_repair_region,quality_application_type,
+               quality_exchange_request,redblack_source_platform,redblack_keyword,redblack_list_type,station_product_id,
+               station_app_id,station_source_platform,station_source_sub_channel,station_api_version,channel_meta_json,
+               diagnostic_types
+        FROM t_phase_one_feedback_list_projection
+        WHERE generation_id=#{generationId} AND source_id&gt;#{afterSourceId}
+        ORDER BY source_id
+        LIMIT #{limit}
+    </select>
+</mapper>
+

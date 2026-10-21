@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.imports.ImportGovernanceMapper">
+  <select id="findApiBatches" resultType="com.feedback.model.po.imports.ImportGovernanceBatchPo">SELECT id,source_channel,trigger_type,source_instance_hash,mapping_config_version,sync_window_from,sync_window_to,batch_status,reconciliation_status,governance_status,total_rows FROM t_import_batch WHERE ingest_method='API' ORDER BY id</select>
+  <update id="supersede">UPDATE t_import_batch SET governance_status='SUPERSEDED',superseded_by_batch_id=CASE id <foreach collection="rows" item="row">WHEN #{row.oldId} THEN #{row.newerId}</foreach> END,governance_reason=#{reason},governed_at=#{now},governed_by=#{actor} WHERE governance_status='ACTIVE' AND id IN <foreach collection="rows" item="row" open="(" separator="," close=")">#{row.oldId}</foreach></update>
+  <update id="archiveNoChange">UPDATE t_import_batch SET governance_status='NO_CHANGE',governance_reason=#{reason},governed_at=#{now},governed_by=#{actor} WHERE governance_status='ACTIVE' AND ingest_method='API' AND batch_status='COMPLETED' AND total_rows=0 AND success_rows=0 AND failed_rows=0 AND reviewed_rows=0</update>
+  <select id="countActive" resultType="int">SELECT COUNT(*) FROM t_import_batch WHERE governance_status='ACTIVE'</select>
+</mapper>

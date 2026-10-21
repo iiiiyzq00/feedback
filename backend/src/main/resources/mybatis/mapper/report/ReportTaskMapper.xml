@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ReportTaskMapper">
+    <delete id="deleteByReport">
+        DELETE FROM t_ai_task
+        WHERE record_type IN ('REPORT_SCHEDULE_RUN', 'REPORT_IDEMPOTENCY', 'REPORT_GENERATION')
+          AND result_entity_type = 'AI_REPORT' AND result_entity_id = #{id}
+    </delete>
+</mapper>

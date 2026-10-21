@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ReportFactContentMapper">
+    <select id="bySourceIds" resultType="com.feedback.model.po.report.ReportFactContentPo">
+        SELECT source_id, title, description, function_module, issue_category, severity_level,
+               user_sentiment, masking_status, mapping_error, data_quality_score, is_deleted AS deleted
+        FROM t_feedback_content WHERE source_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+</mapper>

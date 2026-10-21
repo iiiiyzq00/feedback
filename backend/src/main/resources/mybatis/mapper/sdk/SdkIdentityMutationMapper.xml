@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sdk.SdkIdentityMutationMapper">
+    <sql id="identityColumns">
+        id,source_id,identity_type,identity_scope,fingerprint,fingerprint_key_id,contact_ciphertext,contact_nonce,
+        contact_tag,contact_key_id,contact_algorithm,contact_authorization_basis,consented_at,expires_at
+    </sql>
+    <select id="findBySourceIds" resultType="com.feedback.model.po.sdk.SdkIdentityPo">
+        SELECT <include refid="identityColumns"/> FROM t_feedback_identity WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">
+            #{sourceId}
+        </foreach>
+    </select>
+    <insert id="upsertBatch">
+        INSERT INTO t_feedback_identity(
+          source_id,identity_type,identity_scope,fingerprint,fingerprint_key_id,contact_ciphertext,contact_nonce,
+          contact_tag,contact_key_id,contact_algorithm,contact_authorization_basis,consented_at,expires_at
+        ) VALUES
+        <foreach collection="rows" item="row" separator=",">
+          (#{row.sourceId},#{row.identityType},#{row.identityScope},#{row.fingerprint},#{row.fingerprintKeyId},
+           #{row.contactCiphertext},#{row.contactNonce},#{row.contactTag},#{row.contactKeyId},#{row.contactAlgorithm},
+           #{row.contactAuthorizationBasis},#{row.consentedAt},#{row.expiresAt})
+        </foreach>
+        ON DUPLICATE KEY UPDATE fingerprint=VALUES(fingerprint),fingerprint_key_id=VALUES(fingerprint_key_id),
+          contact_ciphertext=COALESCE(VALUES(contact_ciphertext),contact_ciphertext),
+          contact_nonce=COALESCE(VALUES(contact_nonce),contact_nonce),contact_tag=COALESCE(VALUES(contact_tag),contact_tag),
+          contact_key_id=COALESCE(VALUES(contact_key_id),contact_key_id),
+          contact_algorithm=COALESCE(VALUES(contact_algorithm),contact_algorithm),
+          contact_authorization_basis=COALESCE(VALUES(contact_authorization_basis),contact_authorization_basis),
+          consented_at=COALESCE(VALUES(consented_at),consented_at),expires_at=COALESCE(VALUES(expires_at),expires_at)
+    </insert>
+</mapper>

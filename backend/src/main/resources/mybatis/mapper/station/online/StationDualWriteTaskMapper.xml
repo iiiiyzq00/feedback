@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.station.online.StationDualWriteTaskMapper">
+    <sql id="columns">id,receipt_id,idempotency_key,request_fingerprint,api_version,payload_ciphertext,payload_nonce,
+        payload_tag,key_id,old_fbp_status,new_platform_status,overall_status,retry_count,max_retry_count,lease_owner</sql>
+    <insert id="insertOrLocate" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO t_station_dual_write_task(receipt_id,idempotency_key,request_fingerprint,api_version,
+          payload_ciphertext,payload_nonce,payload_tag,key_id)
+        VALUES(#{receiptId},#{idempotencyKey},#{requestFingerprint},#{apiVersion},#{payloadCiphertext},#{payloadNonce},
+          #{payloadTag},#{keyId})
+        ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
+    </insert>
+    <select id="findByIdempotencyKey" resultType="com.feedback.model.po.station.online.StationDualWriteTaskPo">
+        SELECT <include refid="columns"/> FROM t_station_dual_write_task WHERE idempotency_key=#{idempotencyKey}
+    </select>
+    <select id="findClaimableForUpdate" resultType="com.feedback.model.po.station.online.StationDualWriteTaskPo">
+        SELECT <include refid="columns"/> FROM t_station_dual_write_task
+        WHERE overall_status IN ('ACCEPTED','PROCESSING','PARTIAL','RETRY_PENDING')
+          AND (next_retry_at IS NULL OR next_retry_at&lt;=NOW(3))
+          AND (lease_expires_at IS NULL OR lease_expires_at&lt;NOW(3))
+        ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED
+    </select>
+    <update id="claim">
+        UPDATE t_station_dual_write_task SET overall_status='PROCESSING',lease_owner=#{leaseOwner},
+          lease_expires_at=DATE_ADD(NOW(3),INTERVAL 30 SECOND),updated_at=NOW(3)
+        WHERE id=#{id} AND (lease_expires_at IS NULL OR lease_expires_at&lt;NOW(3))
+    </update>
+    <select id="findClaimed" resultType="com.feedback.model.po.station.online.StationDualWriteTaskPo">
+        SELECT <include refid="columns"/> FROM t_station_dual_write_task WHERE id=#{id} AND lease_owner=#{leaseOwner}
+    </select>
+    <update id="markOldSucceeded">
+        UPDATE t_station_dual_write_task SET old_fbp_status='SUCCEEDED',new_platform_status='PENDING',
+          overall_status='PARTIAL',updated_at=NOW(3) WHERE id=#{id} AND lease_owner=#{leaseOwner}
+          AND old_fbp_status&lt;&gt;'SUCCEEDED'
+    </update>
+    <update id="markCompleted">
+        UPDATE t_station_dual_write_task SET new_platform_status='SUCCEEDED',overall_status='COMPLETED',
+          feedback_source_id=#{sourceId},lease_owner=NULL,lease_expires_at=NULL,next_retry_at=NULL,
+          completed_at=NOW(3),updated_at=NOW(3)
+        WHERE id=#{id} AND lease_owner=#{leaseOwner} AND old_fbp_status='SUCCEEDED'
+    </update>
+    <update id="markFailure">
+        UPDATE t_station_dual_write_task SET overall_status=#{overallStatus},retry_count=#{retryCount},
+          old_fbp_status=CASE WHEN old_fbp_status&lt;&gt;'SUCCEEDED' THEN #{failedStatus} ELSE old_fbp_status END,
+          new_platform_status=CASE WHEN old_fbp_status='SUCCEEDED' AND new_platform_status&lt;&gt;'SUCCEEDED'
+            THEN #{failedStatus} ELSE new_platform_status END,
+          next_retry_at=CASE WHEN #{finalFailure}=FALSE THEN TIMESTAMPADD(SECOND,#{delaySeconds},NOW(3)) ELSE NULL END,
+          lease_owner=NULL,lease_expires_at=NULL,last_error_code=#{errorCode},last_error_summary=#{errorSummary},updated_at=NOW(3)
+        WHERE id=#{id} AND lease_owner=#{leaseOwner}
+    </update>
+</mapper>
+

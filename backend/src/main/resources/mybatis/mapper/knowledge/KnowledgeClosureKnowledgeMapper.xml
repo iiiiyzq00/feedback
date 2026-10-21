@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.knowledge.KnowledgeClosureKnowledgeMapper">
+  <select id="countPublished" resultType="int">SELECT COUNT(*) FROM t_ai_knowledge
+    WHERE id=#{id} AND knowledge_status='PUBLISHED'</select>
+  <select id="findStatistics" resultType="com.feedback.model.po.knowledge.KnowledgeUsageStatisticsPo">SELECT id,
+    shown_count,adoption_count,effective_count,ineffective_count,effectiveness_score,last_used_at
+    FROM t_ai_knowledge WHERE id=#{id}</select>
+  <update id="updateStatistics">UPDATE t_ai_knowledge SET shown_count=#{aggregate.shownCount},
+    adoption_count=#{aggregate.adoptionCount},effective_count=#{aggregate.effectiveCount},
+    ineffective_count=#{aggregate.ineffectiveCount},effectiveness_score=#{effectivenessScore},
+    last_used_at=#{aggregate.lastUsedAt} WHERE id=#{id}</update>
+</mapper>

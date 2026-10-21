@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.diagnostics.FeedbackDiagnosticSdkMapper">
+  <!-- 使用宽于一行的哨兵上限检出异常重复；Repository 在超过一行时失败关闭。 -->
+  <select id="findBySourceId" resultType="com.feedback.model.po.feedback.diagnostics.FeedbackDiagnosticSdkPo">
+    SELECT source_id,diagnostic_ciphertext,diagnostic_nonce,diagnostic_tag,diagnostic_key_id,diagnostic_algorithm
+    FROM t_channel_sdk
+    WHERE source_id=#{sourceId} AND diagnostic_ciphertext IS NOT NULL
+    ORDER BY source_id
+    LIMIT #{limit}
+  </select>
+  <select id="findBySourceIds" resultType="com.feedback.model.po.feedback.diagnostics.FeedbackDiagnosticSdkPo">
+    SELECT source_id,diagnostic_ciphertext,diagnostic_nonce,diagnostic_tag,diagnostic_key_id,diagnostic_algorithm
+    FROM (
+      SELECT s.source_id,s.diagnostic_ciphertext,s.diagnostic_nonce,s.diagnostic_tag,
+             s.diagnostic_key_id,s.diagnostic_algorithm,
+             ROW_NUMBER() OVER(PARTITION BY source_id ORDER BY source_id) AS source_row_number
+      FROM t_channel_sdk s
+      WHERE source_id IN
+      <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+        AND diagnostic_ciphertext IS NOT NULL
+    ) bounded
+    WHERE source_row_number&lt;=#{perSourceLimit}
+    ORDER BY source_id
+  </select>
+</mapper>

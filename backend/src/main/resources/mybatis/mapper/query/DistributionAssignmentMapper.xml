@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.DistributionAssignmentMapper">
+  <select id="findOwners" resultType="com.feedback.model.po.query.DistributionOwnerPo">SELECT feedback_source_id,owner_user_id
+    FROM t_feedback_assignment WHERE feedback_source_id IN
+    <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+  <delete id="deleteOwner">DELETE FROM t_feedback_assignment WHERE feedback_source_id=#{sourceId} AND owner_user_id=#{owner}</delete>
+  <update id="restoreOwner">UPDATE t_feedback_assignment SET owner_user_id=#{from},assigned_by=#{actor},assigned_at=NOW(3),
+    assignment_version=assignment_version+1 WHERE feedback_source_id=#{sourceId} AND owner_user_id=#{to}</update>
+</mapper>

@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertLoopRuleMapper"><select id="coverage" resultType="com.feedback.model.po.alert.AlertCategoryCoveragePo">SELECT category,COUNT(DISTINCT rule_code) rule_count,SUM(version_status='ACTIVE' AND is_enabled=1) active_count FROM t_alert_rule WHERE category IN ('DATA_INGEST','DATA_QUALITY','PRODUCT_TREND','MASKING') GROUP BY category</select></mapper>

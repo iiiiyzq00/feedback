@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sync.IndexAiTaskMapper">
+  <select id="statusCounts" resultType="com.feedback.model.po.sync.IndexTaskStatusCountPo">SELECT task_status status,
+    COUNT(*) count FROM t_ai_task WHERE record_type='INDEX_OUTBOX' GROUP BY task_status</select>
+  <!-- 重放会清空 holder 并把任务放回可领取状态，因此必须递增 generation：重放前就已经在飞的旧 Worker
+       仍然持有旧 generation，递增后它们的写回会被下面的 complete/fail 条件直接拒绝，不会把重放结果覆盖掉。 -->
+  <update id="replay">UPDATE t_ai_task SET task_status='RETRY_PENDING',retry_count=0,next_retry_at=NOW(3),
+    lease_holder=NULL,lease_expires_at=NULL,lease_generation=lease_generation+1,
+    error_detail=CONCAT('MANUAL_REPLAY: ',#{reason}),updated_at=NOW(3)
+    WHERE id=#{id} AND record_type='INDEX_OUTBOX' AND task_status='FAILED'</update>
+  <select id="findTaskKeys" resultType="string">SELECT task_key FROM t_ai_task WHERE task_key IN
+    <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach></select>
+  <insert id="insertOutbox">INSERT IGNORE INTO t_ai_task(record_type,source_id,task_key,task_status,input_snapshot,
+    snapshot_retention_until,next_retry_at) VALUES <foreach collection="rows" item="row" separator=",">
+    ('INDEX_OUTBOX',#{row.sourceId},#{row.taskKey},'PENDING',CAST(#{row.inputSnapshot} AS JSON),DATE_ADD(NOW(3),INTERVAL 30 DAY),NOW(3))</foreach></insert>
+  <select id="lockDue" resultType="com.feedback.model.po.sync.IndexAiTaskPo">SELECT id,input_snapshot,retry_count,
+    lease_generation
+    FROM t_ai_task WHERE record_type='INDEX_OUTBOX' AND task_status IN ('PENDING','RETRY_PENDING','PROCESSING')
+      AND (next_retry_at IS NULL OR next_retry_at&lt;=NOW(3))
+      AND (task_status&lt;&gt;'PROCESSING' OR lease_expires_at&lt;NOW(3)) ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED</select>
+  <!-- claim 递增 generation 就是 fencing token 的发放点：holder 字符串可能被复用，只有每次领取都换一个
+       单调递增的 generation，才能把「A 领取→租约过期→B 重新领取→A 晚到写回」这种 ABA 场景区分开。 -->
+  <update id="claim">UPDATE t_ai_task SET task_status='PROCESSING',lease_holder=#{holder},
+    lease_generation=lease_generation+1,
+    lease_expires_at=DATE_ADD(NOW(3),INTERVAL 2 MINUTE),updated_at=NOW(3) WHERE id=#{id}
+    AND record_type='INDEX_OUTBOX' AND task_status IN ('PENDING','RETRY_PENDING','PROCESSING')</update>
+  <!-- 必须回读当前行：generation 由 claim 在数据库里自增，只有读回才能让调用方拿到本次领取的 fencing token。 -->
+  <select id="findClaimed" resultType="com.feedback.model.po.sync.IndexAiTaskPo">SELECT id,input_snapshot,retry_count,
+    lease_holder,lease_generation
+    FROM t_ai_task WHERE id=#{id} AND lease_holder=#{holder} AND task_status='PROCESSING'</select>
+  <!-- complete/fail 的 WHERE 由「只看 id」收紧为 holder + generation 三重匹配：影响行数为 0 说明租约
+       已被别人接管，旧 Worker 的结果必须被丢弃，而不是覆盖新 holder 正在处理的状态。 -->
+  <update id="complete">UPDATE t_ai_task SET task_status='COMPLETED',completed_at=NOW(3),lease_holder=NULL,
+    lease_expires_at=NULL,error_detail=NULL,updated_at=NOW(3)
+    WHERE id=#{id} AND task_status='PROCESSING' AND lease_holder=#{holder} AND lease_generation=#{generation}</update>
+  <update id="fail">UPDATE t_ai_task SET task_status=#{status},retry_count=#{retry},
+    next_retry_at=IF(#{terminal},NOW(3),DATE_ADD(NOW(3),INTERVAL #{delay} SECOND)),lease_holder=NULL,
+    lease_expires_at=NULL,error_detail=#{error},updated_at=NOW(3)
+    WHERE id=#{id} AND task_status='PROCESSING' AND lease_holder=#{holder} AND lease_generation=#{generation}</update>
+</mapper>

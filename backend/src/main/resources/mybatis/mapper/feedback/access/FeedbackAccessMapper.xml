@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.access.FeedbackAccessMapper">
+    <!-- 反馈访问判定的事实行；只取判定所需列，供 FeedbackAccessGuard 一次性决策。
+
+         租户**现算**而不是读 t_feedback_source 上的列：该表没有租户列（见 V245 第 4 节），
+         一条反馈的租户由它解析到的应用身份决定。两跳都是主键查找（事实表按 feedback_source_id，
+         身份表按 id），且这条查询本就是 by-id 单行读取，代价可忽略。
+         COALESCE 到 'DEFAULT'：应用身份未解析（application_identity_id IS NULL）时退到迁移期兼容租户，
+         与 V245 各列默认值同义——不是「无租户」，否则存量数据会突然全部不可见。 -->
+    <select id="findBySourceId" resultType="com.feedback.model.result.feedback.FeedbackAccessResult">
+        SELECT s.id AS source_id,
+               s.source_channel,
+               s.data_environment,
+               c.function_module,
+               s.province_code,
+               s.city_code,
+               c.masking_status,
+               c.is_deleted AS deleted,
+               COALESCE(ai.tenant_key, 'DEFAULT') AS tenant_key
+        FROM t_feedback_source s
+        INNER JOIN t_feedback_content c ON c.source_id = s.id
+        LEFT JOIN t_feedback_primary_problem_fact f ON f.feedback_source_id = s.id
+        LEFT JOIN t_application_identity ai ON ai.id = f.application_identity_id
+        WHERE s.id = #{sourceId}
+    </select>
+</mapper>

@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sdk.SdkFeedbackSourceMutationMapper">
+    <sql id="sourceColumns">
+        id,public_id,source_channel,source_record_id,app_version,package_name,source_event_time,fault_occurred_at,
+        fault_time_raw,fault_time_precision,fault_time_source,fault_time_resolution,source_update_time,ingest_time,
+        province_code,city_code,district_code,created_at,updated_at
+    </sql>
+    <select id="findById" resultType="com.feedback.model.po.sdk.SdkFeedbackSourcePo">
+        SELECT <include refid="sourceColumns"/> FROM t_feedback_source WHERE id=#{id} AND source_channel='SDK'
+    </select>
+    <select id="findByRecordId" resultType="com.feedback.model.po.sdk.SdkFeedbackSourcePo">
+        SELECT <include refid="sourceColumns"/> FROM t_feedback_source
+        WHERE source_channel='SDK' AND source_record_id=#{sourceRecordId}
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id" keyColumn="id">
+        INSERT INTO t_feedback_source(
+          public_id,source_channel,source_record_id,app_version,package_name,source_event_time,fault_occurred_at,
+          fault_time_raw,fault_time_precision,fault_time_source,fault_time_resolution,source_update_time,ingest_time,
+          province_code,city_code,district_code,created_at,updated_at
+        ) VALUES(
+          #{publicId},'SDK',#{sourceRecordId},#{appVersion},#{packageName},#{sourceEventTime},#{faultOccurredAt},
+          #{faultTimeRaw},#{faultTimePrecision},#{faultTimeSource},#{faultTimeResolution},#{sourceUpdateTime},#{ingestTime},
+          #{provinceCode},#{cityCode},#{districtCode},#{createdAt},#{updatedAt}
+        )
+    </insert>
+    <update id="updateNewerEvent">
+        UPDATE t_feedback_source SET source_event_time=#{sourceEventTime},fault_occurred_at=#{faultOccurredAt},
+          fault_time_raw=#{faultTimeRaw},fault_time_precision=#{faultTimePrecision},fault_time_source=#{faultTimeSource},
+          fault_time_resolution=#{faultTimeResolution},source_update_time=#{sourceUpdateTime},updated_at=#{updatedAt}
+        WHERE id=#{id} AND source_channel='SDK' AND source_update_time&lt;#{sourceUpdateTime}
+    </update>
+</mapper>

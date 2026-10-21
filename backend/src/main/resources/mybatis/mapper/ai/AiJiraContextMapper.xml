@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.ai.AiJiraContextMapper">
+  <select id="findBySourceId" resultType="com.feedback.model.po.ai.AiJiraContextPo">SELECT source_id,issue_type_raw,priority_raw,environment
+    FROM t_channel_jira WHERE source_id=#{sourceId}</select>
+</mapper>

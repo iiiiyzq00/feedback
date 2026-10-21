@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.knowledge.KnowledgeClosureAuditMapper">
+  <select id="countAdoption" resultType="int">SELECT COUNT(*) FROM t_system_audit_log
+    WHERE operation='KNOWLEDGE_USAGE_ADOPTED' AND target_type='KNOWLEDGE' AND target_id=#{targetId}
+    AND correlation_id=#{correlationId}</select>
+  <insert id="insertUsage">INSERT IGNORE INTO t_system_audit_log(user_id,operation,audit_class,outcome,target_type,
+    target_id,correlation_id,operation_detail,detail_schema_version,event_time,idempotency_key)
+    VALUES(#{row.actor},#{row.operation},'BUSINESS','SUCCESS','KNOWLEDGE',#{row.targetId},#{row.correlationId},
+    CAST(#{row.detailJson} AS JSON),'knowledge-usage-v1',NOW(3),#{row.idempotencyKey})</insert>
+  <select id="aggregate" resultType="com.feedback.model.po.knowledge.KnowledgeUsageAggregatePo">SELECT
+    COALESCE(SUM(operation='KNOWLEDGE_USAGE_SHOWN'),0) shown_count,
+    COALESCE(SUM(operation='KNOWLEDGE_USAGE_ADOPTED'),0) adoption_count,
+    COALESCE(SUM(operation='KNOWLEDGE_USAGE_EFFECTIVE'),0) effective_count,
+    COALESCE(SUM(operation='KNOWLEDGE_USAGE_INEFFECTIVE'),0) ineffective_count,
+    MAX(CASE WHEN operation LIKE 'KNOWLEDGE_USAGE_%' THEN event_time END) last_used_at
+    FROM t_system_audit_log WHERE target_type='KNOWLEDGE' AND target_id=#{targetId}</select>
+</mapper>

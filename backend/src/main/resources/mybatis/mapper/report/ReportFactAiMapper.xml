@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ReportFactAiMapper">
+    <select id="bySourceIds" resultType="com.feedback.model.po.report.ReportFactAiPo">
+        SELECT source_id, text_fingerprint FROM t_feedback_ai WHERE source_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+    <select id="pendingReviewCount" resultType="long">
+        SELECT COUNT(*) FROM t_feedback_ai WHERE review_status = 'PENDING' AND created_at &lt;= #{to}
+    </select>
+</mapper>

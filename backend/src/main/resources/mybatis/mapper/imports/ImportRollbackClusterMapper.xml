@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.imports.ImportRollbackClusterMapper">
+  <update id="updateStatisticsBatch">UPDATE t_cluster SET total_record_count=CASE id <foreach collection="rows" item="row">WHEN #{row.clusterId} THEN #{row.total}</foreach> END,channel_distribution=CASE id <foreach collection="rows" item="row">WHEN #{row.clusterId} THEN CAST(#{row.distributionJson} AS JSON)</foreach> END,statistics_version=statistics_version+1,statistics_reconciled_at=NOW(3),search_index_status='PENDING',vector_index_status='PENDING',updated_at=NOW(3) WHERE id IN <foreach collection="rows" item="row" open="(" separator="," close=")">#{row.clusterId}</foreach></update>
+  <update id="archiveEmpty">UPDATE t_cluster SET cluster_status='ARCHIVED',lifecycle_version=lifecycle_version+1,status_changed_at=NOW(3),status_reason='来源导入批次回滚后无有效反馈',search_index_status='PENDING',vector_index_status='PENDING',updated_at=NOW(3) WHERE id IN <foreach collection="clusterIds" item="id" open="(" separator="," close=")">#{id}</foreach> AND cluster_status='ACTIVE'</update>
+</mapper>

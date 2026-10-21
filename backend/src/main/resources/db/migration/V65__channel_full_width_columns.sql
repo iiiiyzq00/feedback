@@ -1,0 +1,47 @@
+ALTER TABLE t_channel_jira
+  MODIFY COLUMN watchers TEXT DEFAULT NULL,
+  ADD COLUMN summary VARCHAR(500) DEFAULT NULL AFTER jira_key,
+  ADD COLUMN issue_id VARCHAR(50) DEFAULT NULL AFTER issue_type_raw,
+  ADD COLUMN project_type VARCHAR(50) DEFAULT NULL AFTER project_name,
+  ADD COLUMN project_lead VARCHAR(100) DEFAULT NULL AFTER project_type,
+  ADD COLUMN project_description TEXT DEFAULT NULL AFTER project_lead,
+  ADD COLUMN project_url VARCHAR(500) DEFAULT NULL AFTER project_description,
+  ADD COLUMN jira_created_at DATETIME(3) DEFAULT NULL AFTER creator,
+  ADD COLUMN last_viewed_at DATETIME(3) DEFAULT NULL AFTER jira_updated_at,
+  ADD COLUMN affected_version VARCHAR(200) DEFAULT NULL AFTER resolved_at,
+  ADD COLUMN fix_version VARCHAR(200) DEFAULT NULL AFTER affected_version,
+  ADD COLUMN module_raw VARCHAR(100) DEFAULT NULL AFTER fix_version,
+  ADD COLUMN due_date DATE DEFAULT NULL AFTER module_raw,
+  ADD COLUMN votes INT DEFAULT NULL AFTER due_date,
+  ADD COLUMN label_1 VARCHAR(100) DEFAULT NULL AFTER votes,
+  ADD COLUMN label_2 VARCHAR(100) DEFAULT NULL AFTER label_1,
+  ADD COLUMN label_3 VARCHAR(100) DEFAULT NULL AFTER label_2,
+  ADD COLUMN description_text TEXT DEFAULT NULL AFTER label_3,
+  ADD COLUMN worklog_time VARCHAR(100) DEFAULT NULL AFTER watchers,
+  ADD COLUMN original_estimate_raw VARCHAR(100) DEFAULT NULL AFTER worklog_time,
+  ADD COLUMN remaining_estimate_raw VARCHAR(100) DEFAULT NULL AFTER original_estimate_raw,
+  ADD COLUMN time_spent_raw VARCHAR(100) DEFAULT NULL AFTER remaining_estimate_raw,
+  ADD COLUMN work_ratio VARCHAR(50) DEFAULT NULL AFTER time_spent_raw,
+  ADD COLUMN sigma_original_estimate VARCHAR(100) DEFAULT NULL AFTER work_ratio,
+  ADD COLUMN sigma_remaining_estimate VARCHAR(100) DEFAULT NULL AFTER sigma_original_estimate,
+  ADD COLUMN sigma_time_spent VARCHAR(100) DEFAULT NULL AFTER sigma_remaining_estimate,
+  ADD COLUMN inward_duplicate_link TEXT DEFAULT NULL AFTER inward_links,
+  ADD COLUMN outward_duplicate_link TEXT DEFAULT NULL AFTER outward_links;
+
+ALTER TABLE t_channel_quality
+  ADD COLUMN province VARCHAR(100) DEFAULT NULL AFTER repair_region,
+  ADD COLUMN city VARCHAR(100) DEFAULT NULL AFTER province,
+  ADD COLUMN county VARCHAR(100) DEFAULT NULL AFTER city,
+  ADD COLUMN customer_address VARCHAR(500) DEFAULT NULL AFTER county,
+  ADD COLUMN fault_confirmed VARCHAR(500) DEFAULT NULL AFTER return_reason,
+  ADD COLUMN fault_remark TEXT DEFAULT NULL AFTER fault_confirmed,
+  ADD COLUMN merchant_return_apply_date DATETIME(3) DEFAULT NULL AFTER fault_remark;
+
+ALTER TABLE t_channel_redblack
+  ADD COLUMN uid_raw VARCHAR(100) DEFAULT NULL AFTER original_id,
+  ADD COLUMN headline VARCHAR(500) DEFAULT NULL AFTER uid_hash,
+  ADD COLUMN content_text TEXT DEFAULT NULL AFTER headline,
+  ADD COLUMN pub_time DATETIME(3) DEFAULT NULL AFTER push_time,
+  ADD COLUMN cover_image_url VARCHAR(500) DEFAULT NULL AFTER is_deleted_src,
+  ADD COLUMN image_urls TEXT DEFAULT NULL AFTER cover_image_url,
+  ADD COLUMN video_urls TEXT DEFAULT NULL AFTER image_urls;

@@ -1,0 +1,207 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthUserMapper">
+  <!-- 用户字段的统一映射和列清单，保证各登录查询得到同一份账号快照。 -->
+  <resultMap id="user" type="com.feedback.model.po.auth.AuthUserPo">
+    <id column="id" property="id"/>
+    <result column="username" property="username"/>
+    <result column="display_name" property="displayName"/>
+    <result column="avatar_url" property="avatarUrl"/>
+    <result column="password_hash" property="passwordHash"/>
+    <result column="auth_version" property="authVersion"/>
+    <result column="auth_provider" property="authProvider"/>
+    <result column="is_active" property="active"/>
+    <result column="last_login_at" property="lastLoginAt"/>
+    <!-- 租户必须随账号快照一起读出：主体装配（WebUserDetailsService）是它的唯一消费者，
+         漏掉这一列会让所有会话静默退回默认租户。 -->
+    <result column="tenant_key" property="tenantKey"/>
+  </resultMap>
+
+  <sql id="columns">
+    id,
+    username,
+    display_name,
+    avatar_url,
+    password_hash,
+    auth_version,
+    auth_provider,
+    is_active,
+    last_login_at,
+    tenant_key
+  </sql>
+
+  <!-- 认证热路径只读取启用账号；按用户名用于密码登录，按 ID 用于 Cookie/SSO 会话恢复。 -->
+  <select id="findActiveByUsername" resultMap="user">
+    SELECT <include refid="columns"/>
+    FROM t_auth_user
+    WHERE username = #{username}
+      AND is_active = 1
+    LIMIT 1
+  </select>
+
+  <select id="findActiveById" resultMap="user">
+    SELECT <include refid="columns"/>
+    FROM t_auth_user
+    WHERE id = #{id}
+      AND is_active = 1
+    LIMIT 1
+  </select>
+
+  <select id="findByUsername" resultMap="user">
+    SELECT <include refid="columns"/>
+    FROM t_auth_user
+    WHERE username = #{username}
+    LIMIT 1
+  </select>
+
+  <!-- 管理写入以用户行为并发边界；调用方必须先获取角色变更栅栏，再锁用户，保持全链统一顺序。 -->
+  <select id="lockById" resultMap="user">
+    SELECT <include refid="columns"/>
+    FROM t_auth_user
+    WHERE id = #{id}
+    LIMIT 1
+    FOR UPDATE
+  </select>
+
+  <select id="findPage" resultMap="user">
+    SELECT <include refid="columns"/>
+    FROM t_auth_user
+    <if test="keyword != null">
+      WHERE username LIKE CONCAT('%', #{keyword}, '%')
+         OR display_name LIKE CONCAT('%', #{keyword}, '%')
+    </if>
+    ORDER BY id DESC
+    LIMIT #{size} OFFSET #{offset}
+  </select>
+
+  <select id="count" resultType="long">
+    SELECT COUNT(*)
+    FROM t_auth_user
+    <if test="keyword != null">
+      WHERE username LIKE CONCAT('%', #{keyword}, '%')
+         OR display_name LIKE CONCAT('%', #{keyword}, '%')
+    </if>
+  </select>
+
+  <select id="findByIds" resultMap="user">
+    SELECT <include refid="columns"/>
+    FROM t_auth_user
+    WHERE id IN
+      <foreach collection="ids" item="id" open="(" separator="," close=")">
+        #{id}
+      </foreach>
+  </select>
+
+  <!-- 本地账号的租户由创建它的管理员指定（V245）；这里是该列的唯一写入方。
+       不写成 COALESCE 兜底：调用方（AdminManagementServiceImpl.createUser）已经规范化过，
+       再在这里兜一次会让「谁决定租户」出现两个地方，而两处口径一旦分叉就是静默的跨租户归属。 -->
+  <insert id="insertLocal" parameterType="com.feedback.model.po.auth.AuthUserPo" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_auth_user (
+      public_id,
+      username,
+      display_name,
+      password_hash,
+      auth_provider,
+      is_active,
+      tenant_key
+    ) VALUES (
+      UNHEX(REPLACE(UUID(), '-', '')),
+      #{username},
+      #{displayName},
+      #{passwordHash},
+      'LOCAL',
+      1,
+      #{tenantKey}
+    )
+  </insert>
+
+  <!-- SSO 账号没有本地密码，认证身份由外部身份表与飞书 subject 绑定。 -->
+  <insert id="insertSso" parameterType="com.feedback.model.po.auth.AuthUserPo" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_auth_user (
+      public_id,
+      username,
+      display_name,
+      avatar_url,
+      password_hash,
+      auth_provider,
+      is_active
+    ) VALUES (
+      UUID_TO_BIN(UUID()),
+      #{username},
+      #{displayName},
+      #{avatarUrl},
+      NULL,
+      'SSO',
+      1
+    )
+  </insert>
+
+  <update id="touchLastLogin">
+    UPDATE t_auth_user
+    SET last_login_at = NOW(3)
+    WHERE id = #{id}
+  </update>
+
+  <!--
+    BCrypt 校验在数据库事务外执行；提交登录结果前用账号状态和 authVersion 确认读取快照仍有效。
+    角色、角色权限或启用状态变更必须同步提升 authVersion，才能可靠阻止旧授权快照签发会话。
+  -->
+  <update id="touchLastLoginIfAuthenticationCurrent">
+    UPDATE t_auth_user
+    SET last_login_at = NOW(3)
+    WHERE id = #{id}
+      AND is_active = 1
+      AND auth_provider = 'LOCAL'
+      AND auth_version = #{expectedAuthVersion}
+  </update>
+
+  <!-- 提升 auth_version 可一次性废止此前签发的全部 Redis 会话。 -->
+  <update id="incrementAuthVersion">
+    UPDATE t_auth_user
+    SET auth_version = auth_version + 1
+    WHERE id = #{id}
+  </update>
+
+  <!-- 权限包变化直接按角色关联更新全部用户，避免无界 ID 回拉和数据库参数上限。 -->
+  <update id="incrementAuthVersionByRole">
+    UPDATE t_auth_user AS auth_user
+    INNER JOIN t_auth_user_role AS user_role
+      ON user_role.user_id = auth_user.id
+    SET auth_user.auth_version = auth_user.auth_version + 1
+    WHERE user_role.role_code = #{roleCode}
+      AND (user_role.expires_at IS NULL OR user_role.expires_at &gt; NOW())
+  </update>
+
+  <update id="updateAdminProfile">
+    UPDATE t_auth_user
+    SET display_name = #{displayName},
+        is_active = #{active},
+        auth_version = IF(is_active &lt;&gt; #{active}, auth_version + 1, auth_version)
+    WHERE id = #{id}
+  </update>
+
+  <update id="disableActive">
+    UPDATE t_auth_user
+    SET is_active = 0,
+        auth_version = auth_version + 1
+    WHERE id = #{id}
+      AND is_active = 1
+  </update>
+
+  <update id="updateSsoProfile">
+    UPDATE t_auth_user
+    SET display_name = #{displayName},
+        avatar_url = #{avatarUrl},
+        is_active = 1
+    WHERE id = #{id}
+      AND auth_provider = 'SSO'
+  </update>
+
+  <update id="updateSsoActiveAndVersion">
+    UPDATE t_auth_user
+    SET is_active = #{active},
+        auth_version = auth_version + 1
+    WHERE id = #{id}
+      AND auth_provider = 'SSO'
+  </update>
+</mapper>

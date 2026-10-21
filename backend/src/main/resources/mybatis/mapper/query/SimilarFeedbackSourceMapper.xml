@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.SimilarFeedbackSourceMapper">
+  <select id="findVisibleAfter" resultType="long">SELECT id FROM t_feedback_source WHERE id&gt;#{afterId}
+    AND source_channel IN <foreach collection="channels" item="v" open="(" separator="," close=")">#{v}</foreach>
+    <if test="regions != null">AND (UPPER(COALESCE(province_code,'')) IN
+      <foreach collection="regions" item="v" open="(" separator="," close=")">#{v}</foreach>
+      OR UPPER(COALESCE(city_code,'')) IN
+      <foreach collection="regions" item="v" open="(" separator="," close=")">#{v}</foreach>)</if>
+    ORDER BY id LIMIT #{limit}</select>
+</mapper>

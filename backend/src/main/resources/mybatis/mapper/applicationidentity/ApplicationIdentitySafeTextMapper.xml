@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.applicationidentity.ApplicationIdentitySafeTextMapper">
+    <!-- 只有 masking PASS 且未删除的安全文本能够进入 application 正文证据解析器。 -->
+    <select id="findPassingBySourceIds"
+            resultType="com.feedback.model.po.applicationidentity.ApplicationIdentitySafeTextPo">
+        SELECT
+            source_id,
+            title,
+            description
+        FROM t_feedback_content
+        WHERE masking_status = 'PASS'
+          AND is_deleted = 0
+          AND source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+        ORDER BY source_id
+    </select>
+</mapper>

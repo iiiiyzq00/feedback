@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.ProductFeedbackEventMapper">
+  <insert id="insert">INSERT INTO t_product_feedback_event(request_id,event_type,actor_user_id,previous_handler_user_id,
+    new_handler_user_id,old_status,new_status,event_reason) VALUES(#{row.requestId},#{row.eventType},#{row.actorUserId},
+    #{row.previousHandlerUserId},#{row.newHandlerUserId},#{row.oldStatus},#{row.newStatus},#{row.reason})</insert>
+  <select id="findByRequestId" resultType="com.feedback.model.po.query.ProductFeedbackEventPo">SELECT id,event_type,
+    actor_user_id,previous_handler_user_id,new_handler_user_id,old_status,new_status,event_reason reason,created_at
+    FROM t_product_feedback_event WHERE request_id=#{requestId} ORDER BY id</select>
+</mapper>

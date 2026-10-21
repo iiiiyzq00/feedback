@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.ProductFeedbackRequestMapper">
+  <sql id="filter"><where><if test="status != null">request_status=#{status}</if><if test="type != null">AND request_type=#{type}</if>
+    <if test="creator != null">AND created_by=#{creator}</if></where></sql>
+  <sql id="columns">id,request_no,request_type,title,description,source_channel,feedback_source_id,page_path,
+    page_context,attachment_metadata attachments,request_status,priority_code,planned_version,resolution_note,created_by,
+    handler_user_id,accepted_at,completed_at,created_at,updated_at</sql>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_product_feedback_request(request_no,
+    request_type,title,description,source_channel,feedback_source_id,page_path,page_context,attachment_metadata,created_by)
+    VALUES(#{row.requestNo},#{row.requestType},#{row.title},#{row.description},#{row.sourceChannel},#{row.feedbackSourceId},
+    #{row.pagePath},CAST(#{row.pageContextJson} AS JSON),CAST(#{row.attachmentsJson} AS JSON),#{row.createdBy})</insert>
+  <select id="count" resultType="long">SELECT COUNT(*) FROM t_product_feedback_request <include refid="filter"/></select>
+  <select id="findPage" resultType="com.feedback.model.po.query.ProductFeedbackRequestPo">SELECT <include refid="columns"/>
+    FROM t_product_feedback_request <include refid="filter"/> ORDER BY created_at DESC,id DESC LIMIT #{limit} OFFSET #{offset}</select>
+  <select id="findById" resultType="com.feedback.model.po.query.ProductFeedbackRequestPo">SELECT <include refid="columns"/>
+    FROM t_product_feedback_request WHERE id=#{id}</select>
+  <select id="lockById" resultType="com.feedback.model.po.query.ProductFeedbackRequestPo">SELECT <include refid="columns"/>
+    FROM t_product_feedback_request WHERE id=#{id} FOR UPDATE</select>
+  <update id="update">UPDATE t_product_feedback_request SET request_status=#{row.status},handler_user_id=#{row.handler},
+    priority_code=#{row.priority},planned_version=#{row.plannedVersion},resolution_note=COALESCE(#{row.resolutionNote},resolution_note),
+    accepted_at=IF(#{row.status}='ACCEPTED',NOW(3),accepted_at),completed_at=IF(#{row.status}='COMPLETED',NOW(3),NULL)
+    WHERE id=#{row.id}</update>
+</mapper>

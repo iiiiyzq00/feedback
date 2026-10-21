@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListProjectionDirtyMapper">
+    <insert id="upsertDirty">
+        INSERT INTO t_phase_one_feedback_list_projection_dirty(
+            source_id,mutation_version,dirty_reason,task_status,retry_count,next_retry_at,
+            lease_owner,lease_expires_at,last_error_code,last_error_summary
+        ) VALUES
+        <foreach collection="sourceIds" item="sourceId" separator=",">
+            (#{sourceId},1,#{dirtyReason},'PENDING',0,NULL,NULL,NULL,NULL,NULL)
+        </foreach>
+        AS incoming
+        ON DUPLICATE KEY UPDATE
+            mutation_version=t_phase_one_feedback_list_projection_dirty.mutation_version+1,
+            dirty_reason=incoming.dirty_reason,
+            task_status='PENDING',retry_count=0,next_retry_at=NULL,
+            lease_owner=NULL,lease_expires_at=NULL,last_error_code=NULL,last_error_summary=NULL
+    </insert>
+
+    <select id="findClaimableForUpdate" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListProjectionDirtyPo">
+        SELECT source_id,mutation_version,dirty_reason,task_status,retry_count,next_retry_at,
+               lease_owner,lease_expires_at,last_error_code,last_error_summary,created_at,updated_at
+        FROM t_phase_one_feedback_list_projection_dirty
+        WHERE (
+            (task_status IN ('PENDING','RETRY') AND (next_retry_at IS NULL OR next_retry_at&lt;=CURRENT_TIMESTAMP(3)))
+            OR (task_status='PROCESSING' AND lease_expires_at&lt;=CURRENT_TIMESTAMP(3))
+        )
+        <if test="preferredSourceIds != null">
+            AND source_id IN
+            <foreach collection="preferredSourceIds" item="sourceId" open="(" separator="," close=")">
+                #{sourceId}
+            </foreach>
+        </if>
+        ORDER BY source_id
+        LIMIT #{limit}
+        FOR UPDATE SKIP LOCKED
+    </select>
+
+    <update id="markProcessing">
+        UPDATE t_phase_one_feedback_list_projection_dirty
+        SET task_status='PROCESSING',lease_owner=#{leaseOwner},
+            lease_expires_at=TIMESTAMPADD(SECOND,#{leaseSeconds},CURRENT_TIMESTAMP(3))
+        WHERE (source_id,mutation_version) IN
+        <foreach collection="rows" item="row" open="(" separator="," close=")">
+            (#{row.sourceId},#{row.mutationVersion})
+        </foreach>
+    </update>
+
+    <delete id="deleteClaimed">
+        DELETE FROM t_phase_one_feedback_list_projection_dirty
+        WHERE lease_owner=#{leaseOwner} AND (source_id,mutation_version) IN
+        <foreach collection="rows" item="row" open="(" separator="," close=")">
+            (#{row.sourceId},#{row.mutationVersion})
+        </foreach>
+    </delete>
+
+    <update id="releaseClaimed">
+        UPDATE t_phase_one_feedback_list_projection_dirty
+        SET task_status='PENDING',next_retry_at=TIMESTAMPADD(SECOND,#{delaySeconds},CURRENT_TIMESTAMP(3)),
+            lease_owner=NULL,lease_expires_at=NULL
+        WHERE lease_owner=#{leaseOwner} AND (source_id,mutation_version) IN
+        <foreach collection="rows" item="row" open="(" separator="," close=")">
+            (#{row.sourceId},#{row.mutationVersion})
+        </foreach>
+    </update>
+
+    <update id="markRetry">
+        UPDATE t_phase_one_feedback_list_projection_dirty
+        SET task_status='RETRY',retry_count=retry_count+1,
+            next_retry_at=TIMESTAMPADD(SECOND,#{delaySeconds},CURRENT_TIMESTAMP(3)),
+            lease_owner=NULL,lease_expires_at=NULL,last_error_code=#{errorCode},last_error_summary=#{errorSummary}
+        WHERE lease_owner=#{leaseOwner} AND (source_id,mutation_version) IN
+        <foreach collection="rows" item="row" open="(" separator="," close=")">
+            (#{row.sourceId},#{row.mutationVersion})
+        </foreach>
+    </update>
+
+    <update id="markFailed">
+        UPDATE t_phase_one_feedback_list_projection_dirty
+        SET task_status='FAILED',retry_count=retry_count+1,next_retry_at=NULL,
+            lease_owner=NULL,lease_expires_at=NULL,last_error_code=#{errorCode},last_error_summary=#{errorSummary}
+        WHERE lease_owner=#{leaseOwner} AND (source_id,mutation_version) IN
+        <foreach collection="rows" item="row" open="(" separator="," close=")">
+            (#{row.sourceId},#{row.mutationVersion})
+        </foreach>
+    </update>
+
+    <select id="findFirstForUpdate" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListProjectionDirtyPo">
+        SELECT source_id,mutation_version,dirty_reason,task_status,retry_count,next_retry_at,
+               lease_owner,lease_expires_at,last_error_code,last_error_summary,created_at,updated_at
+        FROM t_phase_one_feedback_list_projection_dirty
+        ORDER BY source_id
+        LIMIT 1
+        FOR UPDATE
+    </select>
+</mapper>
+

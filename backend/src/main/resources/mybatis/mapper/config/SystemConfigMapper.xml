@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.config.SystemConfigMapper">
+    <sql id="systemColumns">
+        id, config_key, config_version, CAST(config_value AS CHAR) AS config_value, config_desc,
+        is_active, change_set_id, change_reason, source_config_id, created_by, created_at, updated_at
+    </sql>
+    <sql id="evidenceColumns">
+        config_key, config_version, CAST(config_value AS CHAR) AS config_value,
+        config_subtype, record_status, record_version, effective_to
+    </sql>
+
+    <select id="findActiveCatalogs" resultType="com.feedback.model.po.config.DynamicConfigCatalogPo">
+        SELECT config_key, CAST(config_value AS CHAR) AS config_value
+        FROM t_system_config
+        WHERE config_type = 'DYNAMIC_CONFIG_CATALOG' AND is_active = 1
+        ORDER BY config_key
+        LIMIT #{limit}
+    </select>
+
+    <select id="findCatalog" resultType="com.feedback.model.po.config.DynamicConfigCatalogPo">
+        SELECT config_key, CAST(config_value AS CHAR) AS config_value
+        FROM t_system_config
+        WHERE config_key = #{catalogKey} AND config_type = 'DYNAMIC_CONFIG_CATALOG' AND is_active = 1
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="lockCatalogs" resultType="com.feedback.model.po.config.DynamicConfigCatalogPo">
+        SELECT config_key, CAST(config_value AS CHAR) AS config_value
+        FROM t_system_config
+        WHERE config_type = 'DYNAMIC_CONFIG_CATALOG' AND is_active = 1 AND config_key IN
+        <foreach collection="catalogKeys" item="key" open="(" separator="," close=")">#{key}</foreach>
+        ORDER BY config_key
+        FOR UPDATE
+    </select>
+
+    <select id="findActiveConfigurations" resultType="com.feedback.model.po.config.SystemConfigPo">
+        SELECT <include refid="systemColumns"/>
+        FROM t_system_config
+        WHERE config_type = 'SYSTEM' AND is_active = 1 AND config_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+        ORDER BY config_key
+    </select>
+
+    <select id="findHistory" resultType="com.feedback.model.po.config.SystemConfigPo">
+        SELECT <include refid="systemColumns"/>
+        FROM t_system_config
+        WHERE config_key = #{key} AND config_type = 'SYSTEM'
+        ORDER BY id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+
+    <select id="countHistory" resultType="long">
+        SELECT COUNT(*) FROM t_system_config WHERE config_key = #{key} AND config_type = 'SYSTEM'
+    </select>
+
+    <select id="countHistoryByKeys" resultType="com.feedback.model.po.config.SystemConfigVersionCountPo">
+        SELECT config_key, COUNT(*) AS history_count
+        FROM t_system_config
+        WHERE config_type = 'SYSTEM' AND config_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+        GROUP BY config_key
+        ORDER BY config_key
+    </select>
+
+    <update id="deactivate">
+        UPDATE t_system_config
+        SET is_active = 0
+        WHERE config_type = 'SYSTEM' AND is_active = 1 AND config_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+    </update>
+
+    <insert id="insertAll">
+        INSERT INTO t_system_config(
+            config_key, config_type, config_version, config_value, config_desc, is_active,
+            change_set_id, change_reason, source_config_id, created_by
+        ) VALUES
+        <foreach collection="records" item="record" separator=",">
+            (#{record.configKey}, 'SYSTEM', #{record.configVersion}, CAST(#{record.configValue} AS JSON),
+             #{record.configDesc}, 1, #{record.changeSetId}, #{record.changeReason},
+             #{record.sourceConfigId}, #{record.createdBy})
+        </foreach>
+    </insert>
+
+    <select id="findByKeyAndVersion" resultType="com.feedback.model.po.config.SystemConfigPo">
+        SELECT <include refid="systemColumns"/>
+        FROM t_system_config
+        WHERE config_key = #{key} AND config_type = 'SYSTEM' AND config_version = #{version}
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findActiveRuntime" resultType="com.feedback.model.po.config.SystemConfigPo">
+        SELECT <include refid="systemColumns"/>
+        FROM t_system_config
+        WHERE config_key = #{key} AND config_type = 'SYSTEM' AND is_active = 1
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findActiveMaskingRuleVersion" resultType="com.feedback.model.po.config.MaskingEvidencePo">
+        SELECT <include refid="evidenceColumns"/>
+        FROM t_system_config
+        WHERE config_key = 'masking.rule-version' AND config_type = 'SYSTEM' AND is_active = 1
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findMaskingRelease" resultType="com.feedback.model.po.config.MaskingEvidencePo">
+        SELECT <include refid="evidenceColumns"/>
+        FROM t_system_config
+        WHERE config_type = 'MASKING_RELEASE' AND config_version = #{version}
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="findMaskingEvidence" resultType="com.feedback.model.po.config.MaskingEvidencePo">
+        SELECT <include refid="evidenceColumns"/>
+        FROM t_system_config
+        WHERE config_key = #{key} AND config_type = #{type}
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+</mapper>

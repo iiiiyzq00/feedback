@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.knowledge.JiraKnowledgeAuditMapper">
+  <insert id="insert">INSERT INTO t_system_audit_log(user_id,operation,audit_class,outcome,target_type,target_id,
+    operation_detail) VALUES(#{actor},#{operation},'BUSINESS','SUCCESS','KNOWLEDGE_CANDIDATE','JIRA',
+    CAST(#{detailJson} AS JSON))</insert>
+</mapper>

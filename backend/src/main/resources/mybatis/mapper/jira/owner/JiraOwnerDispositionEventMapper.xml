@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.jira.owner.JiraOwnerDispositionEventMapper">
+    <insert id="insertBatch">
+        INSERT INTO t_feedback_disposition_event(
+          feedback_source_id,event_type,handler_user_id,new_owner_user_id,
+          old_distribution_status,new_distribution_status,event_reason
+        ) VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (#{row.sourceId},'JIRA_OWNER_INITIALIZED',#{row.ownerUserId},#{row.ownerUserId},
+             'UNASSIGNED','ACCEPTED','由Jira经办人首次初始化平台负责人')
+        </foreach>
+    </insert>
+</mapper>

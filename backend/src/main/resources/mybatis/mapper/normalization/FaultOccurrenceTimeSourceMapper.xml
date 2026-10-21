@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.normalization.FaultOccurrenceTimeSourceMapper">
+    <select id="findPendingAfter" resultType="com.feedback.model.po.normalization.FaultOccurrenceTimeSourcePo">
+        SELECT id, source_channel, source_event_time
+        FROM t_feedback_source
+        WHERE fault_time_resolution = 'PENDING' AND id &gt; #{afterSourceId}
+        ORDER BY id
+        LIMIT #{limit}
+        FOR UPDATE
+    </select>
+    <update id="updateAll">
+        UPDATE t_feedback_source
+        SET fault_occurred_at = CASE id
+            <foreach collection="updates" item="update">WHEN #{update.sourceId} THEN #{update.occurredAt}</foreach>
+            ELSE fault_occurred_at END,
+            fault_time_raw = CASE id
+            <foreach collection="updates" item="update">WHEN #{update.sourceId} THEN #{update.raw}</foreach>
+            ELSE fault_time_raw END,
+            fault_time_precision = CASE id
+            <foreach collection="updates" item="update">WHEN #{update.sourceId} THEN #{update.precision}</foreach>
+            ELSE fault_time_precision END,
+            fault_time_source = CASE id
+            <foreach collection="updates" item="update">WHEN #{update.sourceId} THEN #{update.source}</foreach>
+            ELSE fault_time_source END,
+            fault_time_resolution = CASE id
+            <foreach collection="updates" item="update">WHEN #{update.sourceId} THEN #{update.resolution}</foreach>
+            ELSE fault_time_resolution END,
+            updated_at = NOW(3)
+        WHERE fault_time_resolution = 'PENDING' AND id IN
+        <foreach collection="updates" item="update" open="(" separator="," close=")">#{update.sourceId}</foreach>
+    </update>
+</mapper>

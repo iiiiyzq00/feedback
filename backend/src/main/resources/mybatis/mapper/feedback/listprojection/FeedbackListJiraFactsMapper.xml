@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListJiraFactsMapper">
+    <select id="findBySourceIds" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListJiraFactsPo">
+        SELECT source_id,jira_key,issue_type_raw,jira_status_raw,priority_raw,project_key,project_name,resolution,
+               assignee,jira_created_at,jira_updated_at,resolved_at,affected_version,fix_version,module_raw,due_date,
+               label_1,label_2,label_3,comment_summary
+        FROM t_channel_jira WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+    </select>
+</mapper>
+

@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthExternalIdentityMapper">
+  <!-- 飞书 provider_subject（openId）定位唯一的本地用户，其余标识用于资料刷新和组织授权。 -->
+  <resultMap id="identity" type="com.feedback.model.po.auth.AuthExternalIdentityPo">
+    <id column="id" property="id"/>
+    <result column="user_id" property="userId"/>
+    <result column="provider" property="provider"/>
+    <result column="provider_subject" property="providerSubject"/>
+    <result column="union_id" property="unionId"/>
+    <result column="employee_id" property="employeeId"/>
+    <result column="tenant_key" property="tenantKey"/>
+  </resultMap>
+
+  <select id="findFeishuBySubject" resultMap="identity">
+    SELECT
+      id,
+      user_id,
+      provider,
+      provider_subject,
+      union_id,
+      employee_id,
+      tenant_key
+    FROM t_auth_external_identity
+    WHERE provider = 'FEISHU'
+      AND provider_subject = #{providerSubject}
+    LIMIT 1
+  </select>
+
+  <select id="findAllFeishu" resultMap="identity">
+    SELECT
+      id,
+      user_id,
+      provider,
+      provider_subject,
+      union_id,
+      employee_id,
+      tenant_key
+    FROM t_auth_external_identity
+    WHERE provider = 'FEISHU'
+    ORDER BY id
+  </select>
+
+  <select id="findFeishuByUserIds" resultMap="identity">
+    SELECT
+      id,
+      user_id,
+      provider,
+      provider_subject,
+      union_id,
+      employee_id,
+      tenant_key
+    FROM t_auth_external_identity
+    WHERE provider = 'FEISHU'
+      AND user_id IN
+      <foreach collection="userIds" item="id" open="(" separator="," close=")">
+        #{id}
+      </foreach>
+    ORDER BY id
+  </select>
+
+  <!-- 首次绑定写入登录时间；后续登录刷新可变资料但不改变 user_id 归属。 -->
+  <insert id="insert" parameterType="com.feedback.model.po.auth.AuthExternalIdentityPo" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_auth_external_identity (
+      user_id,
+      provider,
+      provider_subject,
+      union_id,
+      employee_id,
+      tenant_key,
+      last_login_at
+    ) VALUES (
+      #{userId},
+      #{provider},
+      #{providerSubject},
+      #{unionId},
+      #{employeeId},
+      #{tenantKey},
+      NOW(3)
+    )
+  </insert>
+
+  <update id="updateFeishu">
+    UPDATE t_auth_external_identity
+    SET union_id = #{unionId},
+        employee_id = #{employeeId},
+        tenant_key = #{tenantKey},
+        last_login_at = NOW(3)
+    WHERE provider = 'FEISHU'
+      AND provider_subject = #{providerSubject}
+  </update>
+</mapper>

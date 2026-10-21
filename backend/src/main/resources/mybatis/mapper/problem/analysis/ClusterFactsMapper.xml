@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.problem.analysis.ClusterFactsMapper">
+  <!-- 只读取簇主表生命周期事实；范围聚合由成员投影 Mapper 完成，二者在应用层按 ID 组装。 -->
+  <select id="findByIds" resultType="com.feedback.model.po.problem.analysis.ClusterFactsPo">
+    SELECT id,cluster_name name,canonical_symptom,function_module,issue_category,cluster_status status,
+           lifecycle_version,merged_into_cluster_id,split_from_cluster_id,status_reason
+    FROM t_cluster WHERE id IN
+    <foreach collection="clusterIds" item="value" open="(" separator="," close=")">#{value}</foreach>
+    ORDER BY id
+  </select>
+</mapper>
+

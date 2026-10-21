@@ -1,0 +1,173 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterLinkTableMapper">
+    <sql id="columns">id, cluster_id, feedback_source_id, relation_role, link_type, match_similarity,
+      candidate_rank, match_evidence, decision_version, decision_config_version, feature_snapshot,
+      problem_fingerprint, review_status, review_priority, review_due_at, review_version, reviewed_by,
+      reviewed_at, review_reason, review_request_id, decision_reason, reclassification_run_id,
+      superseded_by_reclassification_run_id, is_active, created_at</sql>
+    <select id="findBySourceIds" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+        SELECT <include refid="columns"/> FROM t_cluster_link WHERE feedback_source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY feedback_source_id, id
+    </select>
+    <select id="lockBySourceIds" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+        SELECT <include refid="columns"/> FROM t_cluster_link WHERE feedback_source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY feedback_source_id, id FOR UPDATE
+    </select>
+    <select id="findActiveMainByClusterIdsAfter" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+        SELECT <include refid="columns"/> FROM t_cluster_link WHERE cluster_id IN
+        <foreach collection="clusterIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        AND relation_role = 'MAIN' AND is_active = 1 AND id &gt; #{afterLinkId}
+        ORDER BY id LIMIT #{limit}
+    </select>
+    <select id="lockActiveMainByClusterIds" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+        SELECT <include refid="columns"/> FROM t_cluster_link WHERE cluster_id IN
+        <foreach collection="clusterIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        AND relation_role = 'MAIN' AND is_active = 1
+        ORDER BY feedback_source_id, id LIMIT #{limit} FOR UPDATE
+    </select>
+    <select id="findPendingReviewSourcesAfter" resultType="com.feedback.model.po.cluster.ClusterReviewQueuePo">
+        SELECT feedback_source_id, MIN(review_priority) priority, MIN(review_due_at) due_at,
+          MIN(created_at) created_at
+        FROM t_cluster_link
+        WHERE relation_role = 'CANDIDATE' AND is_active = 1 AND review_status = 'PENDING'
+        <if test="priority != null">AND review_priority = #{priority}</if>
+        GROUP BY feedback_source_id
+        <if test="afterPriority != null">
+          HAVING (FIELD(MIN(review_priority),'P1','P2','P3') &gt; FIELD(#{afterPriority},'P1','P2','P3')
+            OR (FIELD(MIN(review_priority),'P1','P2','P3') = FIELD(#{afterPriority},'P1','P2','P3')
+              AND MIN(review_due_at) &gt; #{afterDueAt})
+            OR (FIELD(MIN(review_priority),'P1','P2','P3') = FIELD(#{afterPriority},'P1','P2','P3')
+              AND MIN(review_due_at) = #{afterDueAt} AND feedback_source_id &gt; #{afterSourceId}))
+        </if>
+        ORDER BY FIELD(MIN(review_priority),'P1','P2','P3'), MIN(review_due_at), feedback_source_id
+        LIMIT #{limit}
+    </select>
+    <select id="findCandidatesBySourceIds" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+        SELECT <include refid="columns"/> FROM t_cluster_link WHERE feedback_source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        AND relation_role = 'CANDIDATE' AND is_active = 1 AND review_status = 'PENDING'
+        ORDER BY feedback_source_id, candidate_rank, id
+    </select>
+    <select id="findClusterIdsByProblemFingerprint" resultType="long">
+        SELECT DISTINCT cluster_id FROM t_cluster_link
+        WHERE problem_fingerprint = #{fingerprint} AND relation_role = 'MAIN' AND is_active = 1
+        ORDER BY cluster_id LIMIT #{limit}
+    </select>
+    <select id="findRejectedClusterIds" resultType="long">
+        SELECT DISTINCT cluster_id FROM t_cluster_link
+        WHERE feedback_source_id = #{sourceId} AND review_status = 'REJECTED'
+        ORDER BY cluster_id
+    </select>
+    <select id="findByReviewRequestId" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+        SELECT <include refid="columns"/> FROM t_cluster_link WHERE review_request_id=#{reviewRequestId}
+        ORDER BY id LIMIT 1
+    </select>
+    <insert id="insertAll">
+        INSERT INTO t_cluster_link(cluster_id, feedback_source_id, relation_role, link_type,
+          match_similarity, candidate_rank, match_evidence, decision_version, decision_config_version,
+          feature_snapshot, problem_fingerprint, review_status, review_version, reviewed_by, reviewed_at,
+          review_reason, review_request_id, decision_reason, reclassification_run_id, is_active) VALUES
+        <foreach collection="rows" item="row" separator=",">
+          (#{row.clusterId}, #{row.feedbackSourceId}, #{row.relationRole}, #{row.linkType},
+           #{row.matchSimilarity}, #{row.candidateRank}, CAST(#{row.matchEvidence} AS JSON), #{row.decisionVersion},
+           #{row.decisionConfigVersion}, CAST(#{row.featureSnapshot} AS JSON), #{row.problemFingerprint},
+           #{row.reviewStatus}, #{row.reviewVersion}, #{row.reviewedBy},
+           CASE WHEN #{row.reviewedBy} IS NULL THEN NULL ELSE NOW(3) END, #{row.reviewReason},
+           #{row.reviewRequestId}, #{row.decisionReason}, #{row.reclassificationRunId}, 1)
+        </foreach>
+    </insert>
+    <insert id="insertLegacy" useGeneratedKeys="true" keyProperty="row.id">
+      INSERT INTO t_cluster_link(cluster_id,feedback_source_id,relation_role,link_type,match_similarity,candidate_rank,
+        match_evidence,decision_version,decision_config_version,feature_snapshot,problem_fingerprint,review_status,
+        review_priority,review_due_at,review_version,reviewed_by,reviewed_at,review_reason,review_request_id,
+        decision_reason,reclassification_run_id,superseded_by_reclassification_run_id,is_active)
+      VALUES(#{row.clusterId},#{row.feedbackSourceId},#{row.relationRole},#{row.linkType},#{row.matchSimilarity},
+        #{row.candidateRank},CAST(#{row.matchEvidence} AS JSON),#{row.decisionVersion},#{row.decisionConfigVersion},
+        CAST(#{row.featureSnapshot} AS JSON),#{row.problemFingerprint},#{row.reviewStatus},#{row.reviewPriority},
+        #{row.reviewDueAt},#{row.reviewVersion},#{row.reviewedBy},#{row.reviewedAt},#{row.reviewReason},
+        #{row.reviewRequestId},#{row.decisionReason},#{row.reclassificationRunId},#{row.supersededByReclassificationRunId},
+        #{row.isActive})
+    </insert>
+    <update id="claimCandidates">
+        UPDATE t_cluster_link SET
+          is_active = CASE
+          <foreach collection="rows" item="row">WHEN feedback_source_id = #{row.sourceId} THEN IF(#{row.deactivate},0,is_active)</foreach>
+          ELSE is_active END,
+          review_status = CASE
+          <foreach collection="rows" item="row">
+            WHEN feedback_source_id = #{row.sourceId} THEN
+              CASE WHEN #{row.deactivate} THEN
+                CASE WHEN #{row.selectedClusterId} IS NOT NULL AND cluster_id &lt;&gt; #{row.selectedClusterId}
+                  THEN 'REJECTED' ELSE #{row.status} END
+              ELSE review_status END
+          </foreach>
+          ELSE review_status END,
+          reviewed_by = CASE
+          <foreach collection="rows" item="row">WHEN feedback_source_id = #{row.sourceId} AND #{row.deactivate} THEN #{row.reviewerId}</foreach>
+          ELSE reviewed_by END,
+          reviewed_at = CASE
+          <foreach collection="rows" item="row">WHEN feedback_source_id = #{row.sourceId} AND #{row.deactivate} THEN NOW(3)</foreach>
+          ELSE reviewed_at END,
+          review_reason = CASE
+          <foreach collection="rows" item="row">
+            WHEN feedback_source_id = #{row.sourceId} AND (#{row.deactivate} OR candidate_rank = 1) THEN #{row.reason}
+          </foreach>
+          ELSE review_reason END,
+          review_request_id = CASE
+          <foreach collection="rows" item="row">
+            WHEN feedback_source_id = #{row.sourceId} AND
+              ((#{row.selectedClusterId} IS NOT NULL AND cluster_id = #{row.selectedClusterId}) OR
+               (#{row.selectedClusterId} IS NULL AND candidate_rank = 1)) THEN #{row.requestId}
+          </foreach>
+          ELSE review_request_id END,
+          review_version = review_version + 1
+        WHERE relation_role = 'CANDIDATE' AND is_active = 1 AND review_status = 'PENDING' AND (
+        <foreach collection="rows" item="row" separator=" OR ">
+          (feedback_source_id = #{row.sourceId} AND review_version = #{row.expectedVersion})
+        </foreach>)
+    </update>
+    <update id="deactivateMainLinks">
+        UPDATE t_cluster_link SET is_active = 0, review_status = 'REJECTED', reviewed_by = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.linkId} THEN #{row.reviewerId}</foreach>
+          ELSE reviewed_by END,
+          reviewed_at = NOW(3), review_reason = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.linkId} THEN #{row.reason}</foreach>
+          ELSE review_reason END,
+          review_request_id = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.linkId} THEN #{row.requestId}</foreach>
+          ELSE review_request_id END,
+          decision_reason = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.linkId} THEN #{row.decisionReason}</foreach>
+          ELSE decision_reason END,
+          review_version = review_version + 1
+        WHERE is_active = 1 AND relation_role = 'MAIN' AND (
+        <foreach collection="rows" item="row" separator=" OR ">
+          (id = #{row.linkId} AND review_version = #{row.expectedVersion})
+        </foreach>)
+    </update>
+    <update id="skipCandidates">
+        UPDATE t_cluster_link SET is_active = 0, review_status = 'SKIPPED', reviewed_at = NOW(3),
+          review_reason = #{reason}, review_version = review_version + 1,
+          decision_reason = CONCAT_WS('；', NULLIF(decision_reason,''), #{reason})
+        WHERE relation_role = 'CANDIDATE' AND is_active = 1 AND review_status = 'PENDING' AND (
+        <foreach collection="rows" item="row" separator=" OR ">
+          (id = #{row.linkId} AND review_version = #{row.expectedVersion})
+        </foreach>)
+    </update>
+    <update id="updateProblemFingerprint">
+        UPDATE t_cluster_link SET problem_fingerprint = #{fingerprint}
+        WHERE feedback_source_id = #{sourceId} AND cluster_id = #{clusterId}
+          AND relation_role = 'MAIN' AND is_active = 1
+    </update>
+    <update id="appendNameEvolution">
+        UPDATE t_cluster_link SET match_evidence = JSON_SET(COALESCE(match_evidence,JSON_OBJECT()),
+          '$.name_evolution', JSON_OBJECT('from',#{from},'to',#{to},'rule_version','cluster-name-v1',
+          'source_id',#{sourceId},'updated_at',NOW(3)))
+        WHERE feedback_source_id = #{sourceId} AND cluster_id = #{clusterId}
+          AND relation_role = 'MAIN' AND is_active = 1
+    </update>
+</mapper>
+

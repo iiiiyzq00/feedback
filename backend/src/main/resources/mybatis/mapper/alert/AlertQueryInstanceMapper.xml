@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?><!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertQueryInstanceMapper">
+ <sql id="columns">id,rule_id,feedback_source_id,cluster_id,instance_severity level,instance_status status,lifecycle_version,status_reason,fired_at triggered_at,resolved_at</sql>
+ <select id="page" resultType="com.feedback.model.po.alert.AlertQueryInstancePo">SELECT <include refid="columns"/> FROM t_alert_instance WHERE 1=1<if test="query.level != null"> AND instance_severity=#{query.level}</if><if test="query.active"> AND instance_status IN ('PENDING','FIRING','ACKNOWLEDGED','SUPPRESSED','ESCALATED')</if><if test="query.status != null"> AND instance_status=#{query.status}</if><if test="query.alertId != null"> AND id=#{query.alertId}</if><if test="query.clusterId != null"> AND cluster_id=#{query.clusterId}</if> ORDER BY FIELD(instance_severity,'P0','P1','P2','P3'),fired_at DESC,id DESC LIMIT #{limit} OFFSET #{offset}</select>
+ <select id="pageAll" resultType="com.feedback.model.po.alert.AlertQueryInstancePo">SELECT <include refid="columns"/> FROM t_alert_instance WHERE id&gt;#{afterId} ORDER BY id LIMIT #{limit}</select>
+ <select id="find" resultType="com.feedback.model.po.alert.AlertQueryInstancePo">SELECT <include refid="columns"/> FROM t_alert_instance WHERE id=#{id}</select>
+ <select id="lock" resultType="com.feedback.model.po.alert.AlertQueryInstancePo">SELECT <include refid="columns"/> FROM t_alert_instance WHERE id=#{id} FOR UPDATE</select>
+ <select id="status" resultType="string">SELECT instance_status FROM t_alert_instance WHERE id=#{id}</select>
+</mapper>

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.applicationidentity.ApplicationIdentityMapper">
+    <insert id="insertAll">
+        INSERT INTO t_application_identity (
+            public_id,
+            display_name,
+            lifecycle_status,
+            mapping_version,
+            created_by,
+            created_at,
+            updated_at
+        )
+        VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (
+                UUID_TO_BIN(#{row.publicId}),
+                #{row.displayName},
+                #{row.lifecycleStatus},
+                #{row.mappingVersion},
+                #{row.createdBy},
+                NOW(3),
+                NOW(3)
+            )
+        </foreach>
+    </insert>
+    <sql id="columns">
+        id,
+        BIN_TO_UUID(public_id) public_id,
+        display_name,
+        lifecycle_status,
+        mapping_version,
+        created_by
+    </sql>
+    <select id="findByIds" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">
+            #{id}
+        </foreach>
+    </select>
+    <select id="findByPublicIds" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity
+        WHERE public_id IN
+        <foreach collection="publicIds" item="publicId" open="(" separator="," close=")">
+            UUID_TO_BIN(#{publicId})
+        </foreach>
+    </select>
+    <select id="findByPublicId" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity
+        WHERE public_id = UUID_TO_BIN(#{publicId})
+        LIMIT 1
+    </select>
+    <select id="findById" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity
+        WHERE id = #{id}
+        LIMIT 1
+    </select>
+    <select id="findActiveByDisplayName" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity
+        WHERE lifecycle_status = 'ACTIVE'
+          AND display_name = #{displayName}
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+    <select id="findActiveByDisplayNames" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity
+        WHERE lifecycle_status = 'ACTIVE'
+          AND display_name IN
+        <foreach collection="displayNames" item="displayName" open="(" separator="," close=")">
+            #{displayName}
+        </foreach>
+        ORDER BY display_name, id
+        LIMIT #{limit}
+    </select>
+    <select id="findAfterPublicId" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity
+        WHERE lifecycle_status = 'ACTIVE'
+        <if test="afterPublicId != null">
+            AND public_id &gt; UUID_TO_BIN(#{afterPublicId})
+        </if>
+        ORDER BY public_id, id
+        LIMIT #{limit}
+    </select>
+    <!-- 人工重绑由上层固定按 source、target 调用，单行锁不改变角色顺序。 -->
+    <select id="lockById" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity
+        WHERE id = #{id}
+        LIMIT 1
+        FOR UPDATE
+    </select>
+    <update id="compareAndIncrementVersion">
+        UPDATE t_application_identity
+        SET mapping_version = mapping_version + 1,
+            updated_at = NOW(3)
+        WHERE id = #{id}
+          AND lifecycle_status = 'ACTIVE'
+          AND mapping_version = #{expectedVersion}
+    </update>
+    <update id="compareAndIncrementVersions">
+        UPDATE t_application_identity
+        SET mapping_version = mapping_version + 1,
+            updated_at = NOW(3)
+        WHERE lifecycle_status = 'ACTIVE'
+          AND
+        <foreach collection="rows" item="row" open="(" separator=" OR " close=")">
+            (id = #{row.id} AND mapping_version = #{row.expectedVersion})
+        </foreach>
+    </update>
+</mapper>

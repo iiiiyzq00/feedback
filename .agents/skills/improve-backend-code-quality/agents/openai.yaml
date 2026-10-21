@@ -1,0 +1,4 @@
+interface:
+  display_name: "后端代码质量"
+  short_description: "持续提升中文注释、接口抽象、依赖设计与事务边界质量"
+  default_prompt: "Use $improve-backend-code-quality to implement this backend change with senior-level maintainability."

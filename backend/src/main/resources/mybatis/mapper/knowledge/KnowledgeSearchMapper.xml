@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.knowledge.KnowledgeSearchMapper">
+  <select id="search" resultType="com.feedback.model.po.knowledge.KnowledgeSearchPo">SELECT id,knowledge_title title,
+    LEFT(knowledge_content,500) content,feature_module,issue_type,effectiveness_score,knowledge_source,
+    source_rca_id,supersedes_knowledge_id supersedes_id,lifecycle_version,published_at,expires_at,
+    CONCAT('KNOWLEDGE:',id) trace_reference,
+    CASE WHEN #{issue}&lt;&gt;'' AND issue_type=#{issue} THEN '问题类型匹配' ELSE '功能模块匹配' END match_reason
+    FROM t_ai_knowledge WHERE knowledge_status='PUBLISHED' AND (expires_at IS NULL OR expires_at&gt;NOW(3))
+    AND ((#{issue}&lt;&gt;'' AND issue_type=#{issue}) OR (#{module}&lt;&gt;'' AND feature_module=#{module}))
+    ORDER BY (issue_type=#{issue}) DESC,effectiveness_score IS NULL,effectiveness_score DESC,published_at DESC LIMIT #{limit}</select>
+</mapper>

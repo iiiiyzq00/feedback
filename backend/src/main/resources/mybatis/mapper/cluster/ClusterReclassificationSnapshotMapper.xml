@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterReclassificationSnapshotMapper">
+  <insert id="insertAll">INSERT INTO t_cluster_reclassification_cluster_snapshot(run_id,cluster_id,
+    original_status,original_status_reason,original_status_changed_by,original_status_changed_at,original_lifecycle_version) VALUES
+    <foreach collection="rows" item="row" separator=",">(#{row.runId},#{row.clusterId},#{row.originalStatus},
+      #{row.originalStatusReason},#{row.originalStatusChangedBy},#{row.originalStatusChangedAt},#{row.originalLifecycleVersion})</foreach>
+  </insert>
+  <select id="findByRunId" resultType="com.feedback.model.po.cluster.ClusterReclassificationSnapshotPo">
+    SELECT run_id,cluster_id,original_status,original_status_reason,original_status_changed_by,
+      original_status_changed_at,original_lifecycle_version
+    FROM t_cluster_reclassification_cluster_snapshot WHERE run_id=#{runId} ORDER BY cluster_id
+  </select>
+</mapper>
+

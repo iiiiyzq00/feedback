@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.ReviewMetricOccurrenceMapper">
+ <select id="decisionCount" resultType="double">SELECT COUNT(*) FROM t_alert_occurrence WHERE occurrence_type='CLUSTER_REVIEW_DECISION' AND evaluation_time&gt;=DATE_SUB(#{at},INTERVAL 7 DAY) AND evaluation_time&lt;#{at}</select>
+ <select id="overturnRate" resultType="double">SELECT COALESCE(100*SUM(metric_value)/NULLIF(COUNT(*),0),0) FROM t_alert_occurrence WHERE occurrence_type='CLUSTER_REVIEW_DECISION' AND evaluation_time&gt;=DATE_SUB(#{at},INTERVAL 7 DAY) AND evaluation_time&lt;#{at}</select>
+ <select id="inputCompleteness" resultType="double">SELECT COALESCE(100*MIN(completeness),100) FROM t_alert_occurrence WHERE occurrence_type='RULE_INPUT_QUALITY' AND window_end&lt;=#{at} AND window_end&gt;DATE_SUB(#{at},INTERVAL 10 MINUTE)</select>
+ <insert id="insertSnapshots">INSERT IGNORE INTO t_alert_occurrence(occurrence_type,metric_code,dimension_key,window_start,window_end,sample_count,present_count,completeness,data_contract_version,evaluation_snapshot,evaluation_time) VALUES <foreach collection="rows" item="row" separator=",">('RULE_INPUT_QUALITY','RULE_INPUT_COMPLETENESS',#{row.ruleCode},#{row.start},#{row.end},#{row.sampleCount},#{row.presentCount},#{row.completeness},'contract-health-v1',JSON_OBJECT('calculatedAt',NOW(3)),#{row.end})</foreach></insert>
+</mapper>

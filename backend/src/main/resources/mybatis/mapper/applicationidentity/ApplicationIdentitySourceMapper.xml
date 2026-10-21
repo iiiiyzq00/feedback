@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.applicationidentity.ApplicationIdentitySourceMapper">
+    <!-- 来源主表按稳定 ID 游标和显式 limit 分页，渠道编码保持现有任务契约。 -->
+    <select id="findSupportedAfter" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentitySourcePo">
+        SELECT
+            id,
+            source_channel
+        FROM t_feedback_source
+        WHERE id &gt; #{afterSourceId}
+          AND source_channel IN ('SDK', 'STATION_FEEDBACK')
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+    <select id="findFourChannelAfter" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentitySourcePo">
+        SELECT
+            id,
+            source_channel
+        FROM t_feedback_source
+        WHERE id &gt; #{afterSourceId}
+          AND source_channel IN ('STATION_FEEDBACK', 'JIRA', 'QUALITY', 'REDBLACK')
+        ORDER BY id
+        LIMIT #{limit}
+    </select>
+</mapper>

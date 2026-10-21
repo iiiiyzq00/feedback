@@ -1,0 +1,46 @@
+package com.feedback.model.po.sdk
+
+import java.time.LocalDateTime
+
+/** SDK 安全处理所需的接入信封持久化事实；不向公开接口暴露。 */
+data class SdkProcessingEnvelopePo(
+    var id: Long = 0,
+    var receiptId: ByteArray = ByteArray(0),
+    var clientFeedbackId: String = "",
+    var appId: String = "",
+    var appVersion: String? = null,
+    var packageName: String? = null,
+    var functionModule: String? = null,
+    var issueType: String? = null,
+    var sourceEventTime: LocalDateTime? = null,
+    var osVersion: String? = null,
+    var networkType: String? = null,
+    var triggerType: String? = null,
+    var encryptedDataKey: ByteArray? = null,
+    var payloadNonce: ByteArray? = null,
+    var payloadCiphertext: ByteArray? = null,
+    var payloadTag: ByteArray? = null,
+    var contactNonce: ByteArray? = null,
+    var contactCiphertext: ByteArray? = null,
+    var contactTag: ByteArray? = null,
+    var contactAllowed: Boolean = false,
+    var bodyProcessingStatus: String = "PENDING",
+    var contactProcessingStatus: String = "NOT_PROVIDED",
+    var urgencyClass: String = "NORMAL",
+    var keyId: String = "",
+    var algorithmVersion: String = "AES-256-GCM+RSA-OAEP-256",
+    var schemaVersion: String = "sdk-form-v1",
+    var requestSha256: ByteArray? = null,
+    var requestSizeBytes: Int? = null,
+    var ingestStatus: String = "RECEIVED",
+    var dispositionStatus: String = "OPEN",
+    var retryCount: Int = 0,
+    var nextRetryAt: LocalDateTime? = null,
+    var lastErrorCode: String? = null,
+    var lastErrorDetail: String? = null,
+    var feedbackSourceId: Long? = null,
+    var ciphertextDeletedAt: LocalDateTime? = null,
+    var retentionUntil: LocalDateTime? = null,
+    var receivedAt: LocalDateTime = LocalDateTime.now(),
+    var processedAt: LocalDateTime? = null
+)

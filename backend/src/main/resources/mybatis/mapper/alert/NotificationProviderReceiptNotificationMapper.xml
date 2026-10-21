@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.NotificationProviderReceiptNotificationMapper">
+  <select id="findLatestIdForUpdate" resultType="long">SELECT id FROM t_alert_notification WHERE provider_message_id = #{message} AND notify_channel = #{channel} ORDER BY id DESC LIMIT 1 FOR UPDATE</select>
+  <update id="markDelivered">UPDATE t_alert_notification SET notify_status = 'DELIVERED', sent_at = COALESCE(sent_at, NOW(3)) WHERE id = #{id} AND notify_status IN ('SENT','DELIVERED')</update>
+  <update id="markConnected">UPDATE t_alert_notification SET last_provider_code = 'CONNECTED', last_error_summary = '电话已接通，等待按1确认' WHERE id = #{id}</update>
+  <update id="markFailed">UPDATE t_alert_notification SET notify_status = 'FAILED', next_attempt_at = NOW(3), last_provider_code = #{event}, last_error_type = 'PROVIDER_RECEIPT_FAILURE', last_error_summary = #{summary} WHERE id = #{id} AND notify_status IN ('SENT','DELIVERED')</update>
+</mapper>

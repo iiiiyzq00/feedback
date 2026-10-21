@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  历史案例召回：从已人工确认的根因结论里找先验。
+
+  三条 WHERE 条件是本语句的要点，都不是可选的过滤：
+    1. `rca_status = 'CONFIRMED'` —— 未确认的结论不得进入结果集（端口契约原文）。
+       `CORRECTED` 被排除是**保守**选择：它表示结论被修正过，但修正后的状态
+       是否已经过人工确认，从这一列看不出来。
+    2. `confirmed_at IS NOT NULL` —— 状态列与确认时刻必须同时成立。
+       只信状态列会让一条被程序置位但没人看过的结论混进来。
+    3. `incident_id IS NOT NULL` —— 端口返回行的 `incidentId` 是非空类型。
+       没有 Incident 的结论无法作为「Incident 级先例」被引用，如实排除。
+
+  `verification_passed` 由 `validation_status` 派生而不是新读一列：
+  `chk_rca_validation_status` 的取值域是 PASSED/FAILED/PARTIAL，只有 PASSED
+  表示经过发布后验证。`PARTIAL` 不算通过——端口的 hasVerifiedCase 要求全部行通过。
+
+  没有 `SELECT *`，没有 `${}` 拼接，返回具体 PO 而不是裸 Map。
+-->
+<mapper namespace="com.feedback.mapper.rca.RcaHistoricalCaseMapper">
+
+  <!--
+    按签名提示做词面召回。
+
+    `LIKE CONCAT('%', #{signatureHint}, '%')` 里的通配符由 SQL 侧拼接，
+    提示本身仍走 `#{}` 预处理参数，不做字符串拼进语句。
+
+    排序按 `confirmed_at DESC`：同一条提示命中多条时，先给最近确认过的。
+    这不会改变召回集合，只影响模型先看到哪几条。
+
+    `component` 映射到 `feature_module` 是**近似**映射（本平台没有「组件」列），
+    因此只在调用方显式给出时才加这条条件。近似映射只会让结果变窄，
+    窄化是安全方向：少一条先验不会推错结论，多一条错的会。
+  -->
+  <select id="findConfirmedCases" resultType="com.feedback.model.po.rca.RcaHistoricalCasePo">
+    SELECT r.incident_id                              AS incident_id,
+           r.rca_title                                AS title,
+           r.root_cause                               AS confirmed_root_cause,
+           (r.validation_status = 'PASSED')           AS verification_passed,
+           r.confirmed_at                             AS confirmed_at
+    FROM t_root_cause_analysis r
+    WHERE r.rca_status = 'CONFIRMED'
+      AND r.confirmed_at IS NOT NULL
+      AND r.incident_id IS NOT NULL
+      AND (r.rca_title LIKE CONCAT('%', #{signatureHint}, '%')
+        OR r.root_cause LIKE CONCAT('%', #{signatureHint}, '%'))
+    <if test="component != null and component != ''">
+      AND r.feature_module = #{component}
+    </if>
+    ORDER BY r.confirmed_at DESC
+    LIMIT #{limit}
+  </select>
+
+</mapper>

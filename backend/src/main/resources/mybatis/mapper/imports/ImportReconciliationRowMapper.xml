@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.imports.ImportReconciliationRowMapper">
+  <select id="findRows" resultType="com.feedback.model.po.imports.ImportReconciliationRowPo">SELECT id,row_number,feedback_source_id,row_status,quality_error_code fail_code,quality_error_summary fail_reason FROM t_import_row WHERE batch_id=#{batchId} AND record_type='ROW' ORDER BY row_number</select>
+  <select id="findAttachmentStats" resultType="com.feedback.model.po.imports.ImportReconciliationAttachmentPo">SELECT parent_import_row_id,COUNT(*) attachment_count,SUM(final_status='AVAILABLE') available_attachment_count FROM t_import_row WHERE record_type='ATTACHMENT_TASK' AND parent_import_row_id IN <foreach collection="rowIds" item="id" open="(" separator="," close=")">#{id}</foreach> GROUP BY parent_import_row_id</select>
+</mapper>

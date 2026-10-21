@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.scheduler.MaintenanceImportRowMapper">
+    <update id="clearExpiredRawRows">
+        UPDATE t_import_row
+        SET raw_row_content_enc = NULL,
+            raw_nonce = NULL,
+            raw_tag = NULL,
+            raw_deleted_at = NOW(3)
+        WHERE raw_retention_until &lt; NOW(3)
+          AND raw_deleted_at IS NULL
+          AND row_status NOT IN ('PENDING', 'REVIEW_NEEDED')
+    </update>
+    <select id="expiredUploadSessionIds" resultType="long">
+        SELECT id
+        FROM t_import_row
+        WHERE record_type = 'UPLOAD_SESSION'
+          AND expires_at &lt; NOW(3)
+          AND upload_status IN ('UPLOADING', 'ASSEMBLING', 'FAILED')
+        ORDER BY id
+        LIMIT #{limit}
+        FOR UPDATE
+    </select>
+    <update id="expireUploadSessions">
+        UPDATE t_import_row
+        SET upload_status = 'EXPIRED', updated_at = NOW(3)
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+          AND record_type = 'UPLOAD_SESSION'
+          AND expires_at &lt; NOW(3)
+          AND upload_status IN ('UPLOADING', 'ASSEMBLING', 'FAILED')
+    </update>
+</mapper>

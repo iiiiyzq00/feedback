@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.NotificationProviderReceiptAuditMapper">
+  <insert id="insert">
+    INSERT IGNORE INTO t_system_audit_log(operation,audit_class,outcome,target_type,target_id,operation_detail,detail_schema_version,event_time,idempotency_key)
+    VALUES('NOTIFICATION_PROVIDER_RECEIPT','SYSTEM','SUCCESS','ALERT_NOTIFICATION',#{target},
+      JSON_OBJECT('callbackId',#{callback},'providerCode',#{provider},'channel',#{channel},'providerMessageId',#{message},
+        'notificationId',#{notification},'eventType',#{event},'dtmfDigit',#{digit},'payloadSha256',#{sha},'receivedAt',NOW(3)),
+      'provider-receipt-v1',#{time},CONCAT(#{provider},':',#{callback}))
+  </insert>
+  <select id="isLatest" resultType="int">
+    SELECT CASE WHEN idempotency_key=CONCAT(#{provider},':',#{callback}) THEN 1 ELSE 0 END
+    FROM t_system_audit_log
+    WHERE operation='NOTIFICATION_PROVIDER_RECEIPT' AND target_type='ALERT_NOTIFICATION'
+      AND target_id=CAST(#{notification} AS CHAR)
+    ORDER BY event_time DESC,id DESC LIMIT 1
+  </select>
+  <select id="receipts" resultType="com.feedback.model.po.alert.ProviderReceiptAuditPo">
+    SELECT id, JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.callbackId')) callback_id,
+      JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.providerCode')) provider_code,
+      JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.channel')) channel,
+      JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.providerMessageId')) provider_message_id,
+      CAST(JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.notificationId')) AS UNSIGNED) notification_id,
+      JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.eventType')) event_type,
+      JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.dtmfDigit')) dtmf_digit,event_time event_time,
+      JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.payloadSha256')) payload_sha256,created_at received_at
+    FROM t_system_audit_log WHERE operation='NOTIFICATION_PROVIDER_RECEIPT'
+    <if test="provider != null and provider != ''">AND JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.providerCode'))=#{provider}</if>
+    <if test="channel != null and channel != ''">AND JSON_UNQUOTE(JSON_EXTRACT(operation_detail,'$.channel'))=#{channel}</if>
+    ORDER BY id DESC LIMIT #{limit}
+  </select>
+</mapper>

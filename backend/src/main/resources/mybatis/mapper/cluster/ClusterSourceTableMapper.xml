@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterSourceTableMapper">
+    <select id="findByIds" resultType="com.feedback.model.po.cluster.ClusterSourcePo">
+        SELECT id, public_id, source_channel, source_record_id, app_version, package_name,
+          source_event_time, ingest_time, province_code, city_code, created_at, updated_at
+        FROM t_feedback_source WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY id
+    </select>
+    <!-- 影子分类只需要渠道；禁止把来源业务标识、包名或地域字段带入该进程。 -->
+    <select id="findShadowSafeByIds" resultType="com.feedback.model.po.cluster.ClusterSourcePo">
+        SELECT id,source_channel FROM t_feedback_source WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY id
+    </select>
+</mapper>

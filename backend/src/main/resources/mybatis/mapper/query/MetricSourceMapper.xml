@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.MetricSourceMapper">
+  <select id="findIdsAfter" resultType="long">SELECT id FROM t_feedback_source WHERE ingest_time&gt;=#{start}
+    AND data_environment='PRODUCTION' AND source_channel IN
+    <foreach collection="channels" item="channel" open="(" separator="," close=")">#{channel}</foreach>
+    <if test="regions != null">AND (province_code IN
+      <foreach collection="regions" item="region" open="(" separator="," close=")">#{region}</foreach>
+      OR city_code IN <foreach collection="regions" item="region" open="(" separator="," close=")">#{region}</foreach>)</if>
+    AND id&gt;#{afterId} ORDER BY id LIMIT #{limit}</select>
+</mapper>

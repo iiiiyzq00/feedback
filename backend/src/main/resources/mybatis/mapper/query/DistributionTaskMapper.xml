@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.DistributionTaskMapper">
+  <sql id="columns">id,distribution_batch_id,delivery_status,compensation_status,task_status,feedback_source_id,
+    to_owner_user_id,from_owner_user_id,previous_processing_status,provider_idempotency_key</sql>
+  <select id="lockByKey" resultType="com.feedback.model.po.query.DistributionTaskPo">SELECT <include refid="columns"/>
+    FROM t_feedback_handoff_task WHERE provider_idempotency_key=#{key} FOR UPDATE</select>
+  <update id="markDelivered">UPDATE t_feedback_handoff_task SET delivery_status='DELIVERED',provider_receipt_id=#{receipt},
+    delivery_failure_reason=NULL,delivery_confirmed_at=NOW(3) WHERE id=#{id}</update>
+  <update id="markUnknown">UPDATE t_feedback_handoff_task SET delivery_status='UNKNOWN',delivery_failure_reason=#{reason} WHERE id=#{id}</update>
+  <update id="markFailed">UPDATE t_feedback_handoff_task SET delivery_status='FAILED',delivery_failure_reason=#{reason},
+    delivery_confirmed_at=NOW(3) WHERE id=#{id}</update>
+  <update id="markBatchPending">UPDATE t_feedback_handoff_task SET compensation_status='PENDING'
+    WHERE distribution_batch_id=#{batchId} AND task_status='DELIVERED'</update>
+  <select id="lockByBatch" resultType="com.feedback.model.po.query.DistributionTaskPo">SELECT <include refid="columns"/>
+    FROM t_feedback_handoff_task WHERE distribution_batch_id=#{batchId} ORDER BY id FOR UPDATE</select>
+  <update id="markRolledBack">UPDATE t_feedback_handoff_task SET task_status='ROLLED_BACK',
+    compensation_status='COMPLETED',compensated_at=NOW(3) WHERE id=#{id}</update>
+  <update id="markBatchCompensationFailed">UPDATE t_feedback_handoff_task SET compensation_status='FAILED'
+    WHERE distribution_batch_id=#{batchId} AND compensation_status='PENDING'</update>
+  <select id="findUnknownKeys" resultType="string">SELECT provider_idempotency_key FROM t_feedback_handoff_task
+    WHERE delivery_status='UNKNOWN' AND compensation_status='NOT_REQUIRED' ORDER BY created_at,id LIMIT #{limit}</select>
+</mapper>

@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterShadowGenerationMapper">
+  <sql id="columns">id,generation_key,generation_status,algorithm_version,model_version,
+    build_fence_source_id,expected_source_count,processed_count,actionable_count,terminal_count,
+    cluster_count,provisional_count,input_digest,assignment_digest,reverse_assignment_digest,
+    verification_digest,failure_code,failure_summary,created_by,verified_by,verified_at,created_at,updated_at</sql>
+  <insert id="insertBuilding" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_cluster_shadow_generation(generation_key,generation_status,algorithm_version,model_version,
+      build_fence_source_id,expected_source_count,created_by)
+    VALUES(#{generationKey},'BUILDING',#{algorithmVersion},#{modelVersion},#{buildFenceSourceId},
+      #{expectedSourceCount},#{createdBy})
+  </insert>
+  <select id="findByKey" resultType="com.feedback.model.po.cluster.ClusterShadowGenerationPo">
+    SELECT <include refid="columns"/> FROM t_cluster_shadow_generation WHERE generation_key=#{generationKey}
+  </select>
+  <select id="findByKeyForUpdate" resultType="com.feedback.model.po.cluster.ClusterShadowGenerationPo">
+    SELECT <include refid="columns"/> FROM t_cluster_shadow_generation WHERE generation_key=#{generationKey} FOR UPDATE
+  </select>
+  <select id="findBuildingForUpdate" resultType="com.feedback.model.po.cluster.ClusterShadowGenerationPo">
+    SELECT <include refid="columns"/> FROM t_cluster_shadow_generation
+    WHERE generation_status='BUILDING' ORDER BY id LIMIT 1 FOR UPDATE
+  </select>
+  <update id="updateBuilt">
+    UPDATE t_cluster_shadow_generation SET processed_count=#{processedCount},actionable_count=#{actionableCount},
+      terminal_count=#{terminalCount},cluster_count=#{clusterCount},provisional_count=#{provisionalCount},
+      input_digest=#{inputDigest},assignment_digest=#{assignmentDigest},
+      reverse_assignment_digest=#{reverseAssignmentDigest}
+    WHERE id=#{id} AND generation_status='BUILDING' AND processed_count=0
+  </update>
+  <update id="markVerified">
+    UPDATE t_cluster_shadow_generation SET generation_status='VERIFIED',verification_digest=#{verificationDigest},
+      verified_by=#{actorId},
+      verified_at=CURRENT_TIMESTAMP(3),failure_code=NULL,failure_summary=NULL
+    WHERE id=#{id} AND generation_status='BUILDING' AND processed_count=expected_source_count
+      AND assignment_digest=reverse_assignment_digest
+  </update>
+  <update id="markFailed">
+    UPDATE t_cluster_shadow_generation SET generation_status='FAILED',failure_code=#{failureCode},
+      failure_summary=#{failureSummary}
+    WHERE id=#{id} AND generation_status='BUILDING'
+  </update>
+</mapper>

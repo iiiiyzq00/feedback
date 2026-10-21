@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ReportAiCircuitIncidentMapper">
+    <select id="findOpenId" resultType="long">
+        SELECT id
+        FROM t_incident
+        WHERE incident_title = '报告AI连续失败进入降级'
+          AND incident_status IN ('OPEN', 'INVESTIGATING')
+        ORDER BY id DESC
+        LIMIT 1
+    </select>
+    <insert id="open">
+        INSERT INTO t_incident(
+            public_id, incident_title, incident_status, incident_severity, status_reason
+        ) VALUES (
+            UUID_TO_BIN(UUID()), '报告AI连续失败进入降级', 'OPEN', 'P1', 'REPORT_AI_CIRCUIT_OPEN'
+        )
+    </insert>
+    <update id="resolve">
+        UPDATE t_incident
+        SET incident_status = 'RESOLVED',
+            resolved_at = NOW(3),
+            resolution_summary = '报告AI半开探测成功，服务已自动恢复',
+            status_reason = 'REPORT_AI_RECOVERED',
+            lifecycle_version = lifecycle_version + 1
+        WHERE incident_title = '报告AI连续失败进入降级'
+          AND incident_status IN ('OPEN', 'INVESTIGATING')
+    </update>
+</mapper>

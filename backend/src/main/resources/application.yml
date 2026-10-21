@@ -1,0 +1,487 @@
+spring:
+  application:
+    name: feedback-platform
+    version: ${APP_VERSION:dev}
+
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
+  profiles:
+    active: ${SPRING_PROFILES_ACTIVE:local}
+
+  # MySQL 主数据库
+  datasource:
+    url: ${DB_URL:jdbc:mysql://localhost:3306/feedback_platform_local_deploy?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai}
+    username: ${DB_USERNAME:feedback}
+    password: ${DB_PASSWORD}
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      idle-timeout: 300000
+      max-lifetime: 1200000
+      connection-timeout: 10000
+
+  # Flyway
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    clean-disabled: true
+    baseline-on-migrate: true
+    validate-on-migrate: true
+
+  # Redis
+  data:
+    redis:
+      repositories:
+        enabled: false
+      host: localhost
+      port: 6379
+      timeout: 3000ms
+      lettuce:
+        pool:
+          max-active: 16
+          max-idle: 8
+          min-idle: 4
+    elasticsearch:
+      repositories:
+        enabled: false
+
+  # Elasticsearch
+  elasticsearch:
+    uris: http://localhost:9200
+    connection-timeout: 5s
+    socket-timeout: 30s
+  # 文件上传
+  servlet:
+    multipart:
+      max-file-size: 50MB
+      max-request-size: 100MB
+
+  # Jackson
+  jackson:
+    date-format: yyyy-MM-dd HH:mm:ss
+    time-zone: Asia/Shanghai
+    serialization:
+      write-dates-as-timestamps: false
+
+# 公司标准且唯一的任务调度器。启用时每个节点都以同一个应用名
+# 注册；关闭它等于关闭全部定时任务执行。
+xxl:
+  job:
+    enabled: ${XXL_JOB_ENABLED:false}
+    admin:
+      addresses: ${XXL_JOB_ADMIN_ADDRESSES:http://127.0.0.1:8080/xxl-job-admin}
+    executor:
+      appname: ${XXL_JOB_EXECUTOR_APPNAME:feedback-platform}
+      port: ${XXL_JOB_EXECUTOR_PORT:-1}
+      logpath: ${XXL_JOB_EXECUTOR_LOG_PATH:logs/xxl-job/jobhandler}
+
+mybatis:
+  mapper-locations: classpath*:mybatis/mapper/**/*.xml
+  configuration:
+    map-underscore-to-camel-case: true
+
+# 服务器
+dubbo:
+  enabled: ${FEEDBACK_RPC_ENABLED:false}
+  application:
+    name: feedback-platform
+    qos-enable: false
+  protocol:
+    name: dubbo
+    port: ${FEEDBACK_RPC_PORT:-1}
+  registry:
+    address: ${FEEDBACK_RPC_REGISTRY_ADDRESS:N/A}
+  scan:
+    base-packages: com.feedback.service.station
+
+server:
+  port: ${SERVER_PORT:18080}
+  shutdown: graceful
+  tomcat:
+    threads:
+      max: 200
+      min-spare: 20
+
+report:
+  pdf:
+    # 生产环境必须显式配置一个可用的中文字体；本地开发可以用
+    # ReportPdfService 里的平台回退路径。
+    font-path: ${REPORT_PDF_FONT:}
+
+# Actuator + Prometheus
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+    tags:
+      application: ${spring.application.name}
+
+# ============================================
+# 应用自定义配置
+# ============================================
+app:
+  mybatis:
+    observability:
+      enabled: ${MYBATIS_OBSERVABILITY_ENABLED:true}
+      slow-statement-threshold-ms: ${MYBATIS_SLOW_STATEMENT_THRESHOLD_MS:500}
+  phase-one:
+    list-projection:
+      # C1c 默认失败关闭；只能在 generation 校验并受控激活后由部署配置显式开启。
+      read-enabled: ${PHASE_ONE_LIST_PROJECTION_READ_ENABLED:false}
+    problem-analysis-projection:
+      # 批次 D 独立开关；默认失败关闭且不存在旧 SQL 回退。
+      read-enabled: ${PHASE_ONE_PROBLEM_ANALYSIS_PROJECTION_READ_ENABLED:false}
+
+  station-feedback:
+    raw-storage-secret: ${STATION_RAW_STORAGE_SECRET:${IMPORT_RAW_STORAGE_SECRET}}
+    raw-storage-key-id: ${STATION_RAW_STORAGE_KEY_ID:station-raw-v1}
+    raw-retention-days: ${STATION_RAW_RETENTION_DAYS:90}
+    dual-write:
+      enabled: ${STATION_DUAL_WRITE_ENABLED:false}
+      storage-secret: ${STATION_DUAL_WRITE_STORAGE_SECRET:}
+      storage-key-id: ${STATION_DUAL_WRITE_STORAGE_KEY_ID:station-dual-write-v1}
+      old-fbp-token-url: ${STATION_OLD_FBP_TOKEN_URL:}
+      old-fbp-submit-base-url: ${STATION_OLD_FBP_SUBMIT_BASE_URL:}
+      old-fbp-app-id: ${STATION_OLD_FBP_APP_ID:}
+      old-fbp-secret: ${STATION_OLD_FBP_SECRET:}
+      token-cache-seconds: ${STATION_OLD_FBP_TOKEN_CACHE_SECONDS:300}
+      connect-timeout-seconds: ${STATION_OLD_FBP_CONNECT_TIMEOUT_SECONDS:2}
+      call-timeout-seconds: ${STATION_OLD_FBP_CALL_TIMEOUT_SECONDS:8}
+      worker-delay-ms: ${STATION_DUAL_WRITE_WORKER_DELAY_MS:1000}
+
+  public-base-url: ${APP_PUBLIC_BASE_URL:}
+  # SDK 接入
+  sdk:
+    review-retention-days: ${SDK_REVIEW_RETENTION_DAYS:90}
+    # appKey → appSecret 映射（生产环境从 KMS 或数据库加载）
+    app-secrets:
+      course: ${COURSE_SDK_SECRET}
+      question-bank: ${QUESTION_BANK_SDK_SECRET}
+      wrong-book: ${WRONG_BOOK_SDK_SECRET}
+      ai-tutor: ${AI_TUTOR_SDK_SECRET}
+      app-store: ${APP_STORE_SDK_SECRET}
+      universal-feedback-host: ${UNIVERSAL_FEEDBACK_SDK_SECRET}
+      health-demo: ${HEALTH_DEMO_SDK_SECRET}
+      child-art-demo: ${CHILD_ART_DEMO_SDK_SECRET}
+    # RSA 传输密钥 — 服务端私钥（用于解封装 dataKey）
+    transport-key-enabled: ${SDK_TRANSPORT_KEY_ENABLED:false}
+    transport-private-key-path: ${SDK_TRANSPORT_PRIVATE_KEY_PATH:}
+    transport-private-key-paths: ${SDK_TRANSPORT_PRIVATE_KEY_PATHS:}
+    transport-active-key-id: ${SDK_TRANSPORT_ACTIVE_KEY_ID:sdk-transport-v2}
+    transport-public-key-path: ${SDK_TRANSPORT_PUBLIC_KEY_PATH:}
+    nonce-ttl-seconds: 300
+    rate-limit:
+      per-app-per-minute: 100
+      per-ip-per-minute: 60
+
+  # 脱敏
+  masking:
+    enabled: true
+    # 默认为空。本地/开发可以显式试跑一个 DRAFT 候选，但不得
+    # 因此改变它的生命周期，也不得伪造生产评估证据。
+    development-candidate-version: ${MASKING_DEVELOPMENT_CANDIDATE_VERSION:}
+    ner-enabled: ${MASKING_NER_ENABLED:true}
+    fingerprint-secret: ${MASKING_FINGERPRINT_SECRET}
+    fingerprint-key-id: ${MASKING_FINGERPRINT_KEY_ID:identity-hmac-v1}
+    contact-storage-secret: ${CONTACT_STORAGE_SECRET}
+    contact-storage-key-id: ${CONTACT_STORAGE_KEY_ID:contact-storage-v1}
+    worker-delay-ms: ${MASKING_WORKER_DELAY_MS:10000}
+    default-retention-days: 90
+    emergency-retention-days: 30
+
+  # AI / LLM
+  imports:
+    raw-storage-secret: ${IMPORT_RAW_STORAGE_SECRET}
+    raw-storage-key-id: ${IMPORT_RAW_STORAGE_KEY_ID:import-raw-v1}
+    worker-delay-ms: ${IMPORT_WORKER_DELAY_MS:1000}
+
+  # 400 Jira只读API。外部契约和秘密未配置时保持关闭，表格导入不受影响。
+  jira400:
+    enabled: ${JIRA_400_API_ENABLED:false}
+    connection-key: ${JIRA_400_CONNECTION_KEY:jira400-primary}
+    base-url: ${JIRA_400_BASE_URL:}
+    allowed-hosts: ${JIRA_400_ALLOWED_HOSTS:}
+    token: ${JIRA_400_API_TOKEN:}
+    auth-type: ${JIRA_400_AUTH_TYPE:BEARER}
+    auth-header: ${JIRA_400_AUTH_HEADER:Authorization}
+    token-prefix: '${JIRA_400_TOKEN_PREFIX:Bearer }'
+    search-path: ${JIRA_400_SEARCH_PATH:/rest/api/2/search}
+    http-method: ${JIRA_400_HTTP_METHOD:POST}
+    jql: ${JIRA_400_JQL:}
+    page-size: ${JIRA_400_PAGE_SIZE:100}
+    max-issues-per-run: ${JIRA_400_MAX_ISSUES_PER_RUN:5000}
+    initial-lookback-days: ${JIRA_400_INITIAL_LOOKBACK_DAYS:7}
+    overlap-minutes: ${JIRA_400_OVERLAP_MINUTES:5}
+    request-timeout-seconds: ${JIRA_400_REQUEST_TIMEOUT_SECONDS:30}
+    schedule-delay-ms: ${JIRA_400_SCHEDULE_DELAY_MS:300000}
+    worker-delay-ms: ${JIRA_400_WORKER_DELAY_MS:1000}
+    schedule-interval-minutes: ${JIRA_400_SCHEDULE_INTERVAL_MINUTES:30}
+    time-zone: ${JIRA_400_TIME_ZONE:Asia/Shanghai}
+    allow-http-for-loopback: ${JIRA_400_ALLOW_HTTP_LOOPBACK:false}
+  ai:
+    feedback-classify-enabled: ${AI_FEEDBACK_CLASSIFY_ENABLED:false}
+    cluster-assisted-decision-enabled: ${CLUSTER_AI_ASSISTED_DECISION_ENABLED:false}
+    cluster-assisted-decision-worker-delay-ms: ${CLUSTER_AI_ASSISTED_DECISION_WORKER_DELAY_MS:1000}
+    # 分析链路不能一直等着模型提供方长时间故障。一次失败
+    # 就关闭该 AI 任务，让下一个聚类周期走回退。
+    cluster-assisted-decision-max-retries: ${CLUSTER_AI_ASSISTED_DECISION_MAX_RETRIES:1}
+    prompt-assets-path: ${AI_PROMPT_ASSETS_PATH:prompts}
+    require-two-person-approval: ${AI_REQUIRE_TWO_PERSON_APPROVAL:true}
+    require-evaluation-for-invocation: ${AI_REQUIRE_EVALUATION_FOR_INVOCATION:false}
+    auto-rollback-failure-rate: ${AI_AUTO_ROLLBACK_FAILURE_RATE:0.10}
+    auto-rollback-min-invocations: ${AI_AUTO_ROLLBACK_MIN_INVOCATIONS:20}
+    evaluation-runs-per-case: ${AI_EVALUATION_RUNS_PER_CASE:1}
+    evaluation-retry-attempts: ${AI_EVALUATION_RETRY_ATTEMPTS:3}
+    evaluation-retry-backoff-ms: ${AI_EVALUATION_RETRY_BACKOFF_MS:1000}
+    evaluation-parallelism: ${AI_EVALUATION_PARALLELISM:4}
+    enqueue-delay-ms: ${AI_ENQUEUE_DELAY_MS:5000}
+    worker-delay-ms: ${AI_WORKER_DELAY_MS:1000}
+    llm:
+      base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+      api-key: ${OPENAI_API_KEY:}
+      # 刻意不在仓库里给默认值：请在部署密钥/配置中固定一个
+      # 已批准的 OpenAI 模型，并保持被评估模型可审计。
+      model: ${OPENAI_MODEL:}
+      provider: OPENAI
+      allowed-hosts: ${OPENAI_ALLOWED_HOSTS:api.openai.com}
+      deployment-id: ${LLM_DEPLOYMENT_ID:local-dev}
+      daily-token-quota: ${LLM_DAILY_TOKEN_QUOTA:0}
+      data-processing-agreement-id: ${LLM_DATA_PROCESSING_AGREEMENT_ID:}
+      data-not-used-for-training: ${LLM_DATA_NOT_USED_FOR_TRAINING:false}
+      provider-retention-days: ${LLM_PROVIDER_RETENTION_DAYS:0}
+      processing-region: ${LLM_PROCESSING_REGION:LOCAL}
+      timeout-seconds: 120
+      max-retries: 3
+      input-cost-per-million-usd: ${LLM_INPUT_COST_PER_MILLION_USD:0}
+      output-cost-per-million-usd: ${LLM_OUTPUT_COST_PER_MILLION_USD:0}
+    # RRF 融合之后的候选重排。默认关闭：开启会让每次归簇召回多一次**同步**模型调用，
+    # 且发生在 ClusteringEngine 的事务持有期间，最坏持有时长受 app.ai.llm.timeout-seconds 约束。
+    # 只有在实测确认这个延迟可接受之后才该改成 true。模型名与超时都不在这里另设键——
+    # 重排必须与分类走同一个模型、同一个超时，否则日志与账单会对不上。
+    rerank:
+      enabled: ${AI_RERANK_ENABLED:false}
+      # 进入模型重排的头部候选条数。上界 200 = 融合结果的最大规模，再大不会有任何效果。
+      window: ${AI_RERANK_WINDOW:20}
+      # 单条候选正文进上下文的上限，直接决定输入 token，也就是直接决定成本。
+      max-document-chars: ${AI_RERANK_MAX_DOCUMENT_CHARS:400}
+    embedding:
+      provider: ${EMBEDDING_PROVIDER:onnx-bge-m3}
+      model-path: ${BGE_M3_PATH:models/bge-m3}
+      onnx-file: ${BGE_M3_ONNX_FILE:onnx/model.onnx}
+      model-version: ${BGE_M3_MODEL_VERSION:}
+      model-sha256: ${BGE_M3_MODEL_SHA256:}
+      max-length: ${BGE_M3_MAX_LENGTH:512}
+      batch-size: 32
+      dimension: 1024
+
+  cluster:
+    worker-delay-ms: ${CLUSTER_WORKER_DELAY_MS:3000}
+
+  review-governance:
+    # 开发阶段需要集中处理历史复核/审核积压，暂不计算逾期或触发 SLA 告警。
+    # 上线前必须显式设置 REVIEW_GOVERNANCE_SLA_ENABLED=true 并完成存量重算核验。
+    sla-enabled: ${REVIEW_GOVERNANCE_SLA_ENABLED:false}
+
+  rca:
+    # 接入与执行两侧各自的总开关，与 xxl.job.enabled 构成双开关；两层都开才会真正跑。
+    intake-enabled: ${RCA_INTAKE_ENABLED:false}
+    worker-enabled: ${RCA_WORKER_ENABLED:false}
+    intake-batch-size: ${RCA_INTAKE_BATCH_SIZE:100}
+    intake-max-batches-per-run: ${RCA_INTAKE_MAX_BATCHES_PER_RUN:10}
+    # 只接入该数据环境的来源记录。默认 PRODUCTION：带 fixture_tag 的 TEST/VERIFICATION
+    # 行在 SQL 层就选不出来，所以夹具不会进生产证据账本（V115 的 chk_source_fixture_tag）。
+    intake-data-environment: ${RCA_INTAKE_DATA_ENVIRONMENT:PRODUCTION}
+    worker-id: ${RCA_WORKER_ID:}
+    # 单次调度最多领取执行的任务数；XXL handler 是一次调用跑一批，不是常驻轮询。
+    worker-max-tasks-per-run: ${RCA_WORKER_MAX_TASKS_PER_RUN:10}
+    # 当前没有消费方：XXL 每次调用跑一批就返回，不需要 worker 自己 sleep。
+    # 保留是为了让缺口可见，详见 RcaProperties.workerDelayMs 的说明。
+    worker-delay-ms: ${RCA_WORKER_DELAY_MS:1000}
+    lease-seconds: ${RCA_LEASE_SECONDS:180}
+    # 任务整体的墙钟上限，起算点是「领取时刻」。两个消费方必须同源：
+    # claim 用它写 t_rca_agent_task.deadline_at，RcaBudgetPolicy 用它算图内的截止时间。
+    # 见 RcaProperties.taskTimeoutMinutes。
+    task-timeout-minutes: ${RCA_TASK_TIMEOUT_MINUTES:30}
+
+  sync:
+    worker-delay-ms: ${INDEX_SYNC_WORKER_DELAY_MS:5000}
+
+  # 消息通道：领域事件 + 既有两套发件箱的投递。
+  #
+  # 默认关闭。打开它会改变**投递路径本身**——通知与索引的投递从 XXL 轮询换成
+  # broker 驱动，RCA 领域事件开始离开本进程——所以必须是一次显式决定，
+  # 不能由「配置里恰好有值」触发。启动时 `MqTrackReporter` 会打印当前走哪条轨；
+  # 三条轨的处理器各自也有一层开关判断，`xxl.job.enabled` 是另一层。
+  #
+  # 这里没有任何凭据：本平台的 broker 目前没有鉴权，安全边界靠「broker 不对外暴露」。
+  # 生产部署必须显式覆盖 namesrv-addr —— 默认值只是让本机验证不必额外配置。
+  mq:
+    enabled: ${MQ_ENABLED:false}
+    namesrv-addr: ${MQ_NAMESRV_ADDR:127.0.0.1:9876}
+    group-prefix: ${MQ_GROUP_PREFIX:feedback_platform}
+    send-timeout-ms: ${MQ_SEND_TIMEOUT_MS:3000}
+    # 新消费者组从队列尾部开始（false）。库才是事实来源：没被消费到的消息对应的事件
+    # 会停在未投递状态由中继重发，不会丢。本机端到端验证时才设成 true，
+    # 免得用例依赖「先起消费者再发消息」的启动顺序。
+    consume-from-first-offset: ${MQ_CONSUME_FROM_FIRST_OFFSET:false}
+    consumer-threads: ${MQ_CONSUMER_THREADS:4}
+    max-reconsume-times: ${MQ_MAX_RECONSUME_TIMES:5}
+    relay-batch-size: ${MQ_RELAY_BATCH_SIZE:200}
+    rca-domain-event-topic: ${MQ_RCA_DOMAIN_EVENT_TOPIC:FEEDBACK_RCA_DOMAIN_EVENT}
+    notification-topic: ${MQ_NOTIFICATION_TOPIC:FEEDBACK_ALERT_NOTIFICATION}
+    index-sync-topic: ${MQ_INDEX_SYNC_TOPIC:FEEDBACK_INDEX_OUTBOX}
+
+  elasticsearch:
+    index-name: ${ELASTICSEARCH_INDEX_NAME:feedback-v1}
+
+  # Milvus
+  milvus:
+    enabled: ${MILVUS_ENABLED:false}
+    host: localhost
+    port: 19530
+    collection-name: feedback_vectors
+    dimension: 1024
+
+  # 告警
+  alert:
+    feishu-webhook: ${FEISHU_WEBHOOK_URL:}
+    feishu-all-webhook: ${FEISHU_ALL_WEBHOOK_URL:}
+    feishu-dm-endpoint: ${FEISHU_DM_ENDPOINT:}
+    feishu-task-endpoint: ${FEISHU_TASK_ENDPOINT:}
+    feishu-api-token: ${FEISHU_API_TOKEN:}
+    feishu-recipient-ids: ${FEISHU_RECIPIENT_IDS:}
+    email-recipients: ${ALERT_EMAIL_RECIPIENTS:}
+    sms-webhook: ${ALERT_SMS_WEBHOOK_URL:}
+    sms-recipients: ${ALERT_SMS_RECIPIENTS:}
+    voice-call-webhook: ${ALERT_VOICE_CALL_WEBHOOK_URL:}
+    voice-call-token: ${ALERT_VOICE_CALL_TOKEN:}
+    voice-call-recipients: ${ALERT_VOICE_CALL_RECIPIENTS:}
+    provider-receipt-secrets: '${NOTIFICATION_RECEIPT_SECRETS:{}}'
+    email:
+      provider: ${ALERT_EMAIL_PROVIDER:disabled}
+      from: ${ALERT_EMAIL_FROM:}
+      webhook-url: ${ALERT_EMAIL_WEBHOOK_URL:}
+      webhook-timeout-ms: ${ALERT_EMAIL_WEBHOOK_TIMEOUT_MS:8000}
+      connect-timeout-ms: ${ALERT_EMAIL_CONNECT_TIMEOUT_MS:5000}
+      read-timeout-ms: ${ALERT_EMAIL_READ_TIMEOUT_MS:10000}
+      write-timeout-ms: ${ALERT_EMAIL_WRITE_TIMEOUT_MS:10000}
+      smtp:
+        host: ${ALERT_SMTP_HOST:smtp.qq.com}
+        port: ${ALERT_SMTP_PORT:465}
+        ssl: ${ALERT_SMTP_SSL:true}
+        starttls: ${ALERT_SMTP_STARTTLS:false}
+        username: ${ALERT_SMTP_USERNAME:}
+        auth-code: ${ALERT_SMTP_AUTH_CODE:}
+    evaluation-delay-ms: ${ALERT_EVALUATION_DELAY_MS:60000}
+    notification-worker-delay-ms: ${ALERT_NOTIFICATION_WORKER_DELAY_MS:2000}
+    escalation-delay-ms: ${ALERT_ESCALATION_DELAY_MS:60000}
+
+  auth:
+    session:
+      ttl-hours: ${AUTH_SESSION_TTL_HOURS:8}
+    session-cookie:
+      # 生产默认安全。明文 HTTP 的本地开发必须
+      # 显式设置 AUTH_SESSION_COOKIE_SECURE=false。
+      secure: ${AUTH_SESSION_COOKIE_SECURE:true}
+      same-site: ${AUTH_SESSION_COOKIE_SAME_SITE:Strict}
+    feishu:
+      enabled: ${FEISHU_SSO_ENABLED:false}
+      app-id: ${FEISHU_APP_ID:}
+      app-secret: ${FEISHU_APP_SECRET:}
+      redirect-uri: ${FEISHU_REDIRECT_URI:}
+      public-base-url: ${APP_PUBLIC_BASE_URL:}
+      bootstrap-first-user-admin: ${FEISHU_BOOTSTRAP_FIRST_USER_ADMIN:false}
+      organization-sync-enabled: ${FEISHU_ORGANIZATION_SYNC_ENABLED:false}
+      organization-sync-stale-minutes: ${FEISHU_ORGANIZATION_SYNC_STALE_MINUTES:360}
+      organization-sync-retry-attempts: ${FEISHU_ORGANIZATION_SYNC_RETRY_ATTEMPTS:3}
+      organization-sync-retry-delay-ms: ${FEISHU_ORGANIZATION_SYNC_RETRY_DELAY_MS:25}
+      state-ttl-seconds: 300
+      login-code-ttl-seconds: 120
+    login-protection:
+      account-limit: ${AUTH_LOGIN_ACCOUNT_LIMIT:5}
+      ip-limit: ${AUTH_LOGIN_IP_LIMIT:20}
+      window-seconds: ${AUTH_LOGIN_WINDOW_SECONDS:900}
+    bootstrap:
+      username: ${AUTH_BOOTSTRAP_USERNAME:}
+      password: ${AUTH_BOOTSTRAP_PASSWORD:}
+
+  # 附件存储
+  attachment:
+    object-storage:
+      # P1-A 默认关闭；启用时只连接外部私有 MinIO/S3，任何缺失配置都会阻止启动。
+      enabled: ${ATTACHMENT_OBJECT_STORAGE_ENABLED:false}
+      endpoint: ${ATTACHMENT_OBJECT_STORAGE_ENDPOINT:}
+      region: ${ATTACHMENT_OBJECT_STORAGE_REGION:}
+      bucket: ${ATTACHMENT_OBJECT_STORAGE_BUCKET:}
+      path-style-access: ${ATTACHMENT_OBJECT_STORAGE_PATH_STYLE_ACCESS:true}
+      allow-insecure-endpoint: ${ATTACHMENT_OBJECT_STORAGE_ALLOW_INSECURE_ENDPOINT:false}
+      access-key: ${ATTACHMENT_OBJECT_STORAGE_ACCESS_KEY:}
+      secret-key: ${ATTACHMENT_OBJECT_STORAGE_SECRET_KEY:}
+      publish-new: ${ATTACHMENT_OBJECT_STORAGE_PUBLISH_NEW:true}
+      migration-enabled: ${ATTACHMENT_OBJECT_STORAGE_MIGRATION_ENABLED:false}
+      migration-dry-run: ${ATTACHMENT_OBJECT_STORAGE_MIGRATION_DRY_RUN:true}
+      migration-batch-size: ${ATTACHMENT_OBJECT_STORAGE_MIGRATION_BATCH_SIZE:25}
+      migration-delay-ms: ${ATTACHMENT_OBJECT_STORAGE_MIGRATION_DELAY_MS:30000}
+      migration-retry-attempts: ${ATTACHMENT_OBJECT_STORAGE_MIGRATION_RETRY_ATTEMPTS:3}
+      cleanup-local-after-publish: ${ATTACHMENT_OBJECT_STORAGE_CLEANUP_LOCAL_AFTER_PUBLISH:false}
+      cleanup-audit-path: ${ATTACHMENT_OBJECT_STORAGE_CLEANUP_AUDIT_PATH:logs/attachment-object-migration-audit.jsonl}
+      minio-data-dir: ${MINIO_DATA_DIR:}
+      minimum-free-disk-bytes: ${ATTACHMENT_OBJECT_STORAGE_MINIMUM_FREE_DISK_BYTES:21474836480}
+      migration-max-in-memory-bytes: ${ATTACHMENT_OBJECT_STORAGE_MIGRATION_MAX_IN_MEMORY_BYTES:134217728}
+    media-preview:
+      # 仅在私有对象存储启用时工作；页面请求不会同步触发生成。
+      enabled: ${ATTACHMENT_MEDIA_PREVIEW_ENABLED:true}
+      batch-size: ${ATTACHMENT_MEDIA_PREVIEW_BATCH_SIZE:4}
+      concurrency: ${ATTACHMENT_MEDIA_PREVIEW_CONCURRENCY:2}
+      delay-ms: ${ATTACHMENT_MEDIA_PREVIEW_DELAY_MS:2000}
+      lease-seconds: ${ATTACHMENT_MEDIA_PREVIEW_LEASE_SECONDS:60}
+      max-source-bytes: ${ATTACHMENT_MEDIA_PREVIEW_MAX_SOURCE_BYTES:536870912}
+      max-source-pixels: ${ATTACHMENT_MEDIA_PREVIEW_MAX_SOURCE_PIXELS:80000000}
+      max-dimension: ${ATTACHMENT_MEDIA_PREVIEW_MAX_DIMENSION:480}
+      max-output-bytes: ${ATTACHMENT_MEDIA_PREVIEW_MAX_OUTPUT_BYTES:524288}
+      # 视频必须由部署环境显式确认 ffmpeg 可用后开启；未开启时任务保持待处理而非失败。
+      ffmpeg-enabled: ${ATTACHMENT_MEDIA_PREVIEW_FFMPEG_ENABLED:false}
+      ffmpeg-path: ${ATTACHMENT_MEDIA_PREVIEW_FFMPEG_PATH:ffmpeg}
+      video-timeout-ms: ${ATTACHMENT_MEDIA_PREVIEW_VIDEO_TIMEOUT_MS:10000}
+    dir: ${ATTACHMENT_DIR:data/attachments}
+    # 逗号分隔的历史附件只读根；仅用于读取和迁移已有绝对路径，不作为新附件写入目录。
+    legacy-read-roots: ${ATTACHMENT_LEGACY_READ_ROOTS:}
+    max-size-mb: 50
+    storage-encryption-secret: ${ATTACHMENT_STORAGE_ENCRYPTION_SECRET:}
+    storage-encryption-key-id: ${ATTACHMENT_STORAGE_ENCRYPTION_KEY_ID:attachment-storage-v1}
+    security-scan:
+      enabled: ${ATTACHMENT_SECURITY_SCAN_ENABLED:false}
+      clamav-host: ${ATTACHMENT_CLAMAV_HOST:127.0.0.1}
+      clamav-port: ${ATTACHMENT_CLAMAV_PORT:3310}
+      timeout-ms: ${ATTACHMENT_SECURITY_SCAN_TIMEOUT_MS:5000}
+    content-review:
+      local-image-pass: ${ATTACHMENT_CONTENT_REVIEW_LOCAL_IMAGE_PASS:false}
+      local-video-pass: ${ATTACHMENT_CONTENT_REVIEW_LOCAL_VIDEO_PASS:false}
+      local-log-archive-pass: ${ATTACHMENT_CONTENT_REVIEW_LOCAL_LOG_ARCHIVE_PASS:false}
+    secure-stream:
+      enabled: ${ATTACHMENT_SECURE_STREAM_ENABLED:false}
+      ttl-seconds: ${ATTACHMENT_SECURE_STREAM_TTL_SECONDS:300}
+
+  maintenance:
+    freshness:
+      sdk-seconds: ${FRESHNESS_SDK_SECONDS:900}
+      table-seconds: ${FRESHNESS_TABLE_SECONDS:129600}
+      delay-ms: ${FRESHNESS_CHECK_DELAY_MS:300000}
+    orphan-cron: ${ORPHAN_SCAN_CRON:0 15 2 * * *}
+    lease-delay-ms: ${LEASE_RECOVERY_DELAY_MS:60000}
+    cipher-cron: ${CIPHER_CLEANUP_CRON:0 30 2 * * *}
+    cluster-cron: ${CLUSTER_ARCHIVE_CRON:0 45 2 * * *}
+    cluster-archive-days: ${CLUSTER_ARCHIVE_DAYS:90}
+
+# 日志
+logging:
+  level:
+    root: INFO
+    com.feedback: DEBUG
+    org.springframework.web: INFO

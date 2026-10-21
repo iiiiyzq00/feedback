@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterContentTableMapper">
+    <sql id="columns">source_id, title, description, function_module, problem_type, usage_stage,
+      severity_level, issue_category, masking_status, is_deleted, created_at, updated_at</sql>
+    <select id="findByIds" resultType="com.feedback.model.po.cluster.ClusterContentPo">
+        SELECT <include refid="columns"/> FROM t_feedback_content WHERE source_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY source_id
+    </select>
+    <!-- 非 PASS 内容只返回治理状态；数据库不得把隔离正文带入影子算法进程。 -->
+    <select id="findShadowSafeByIds" resultType="com.feedback.model.po.cluster.ClusterContentPo">
+        SELECT source_id,
+               CASE WHEN masking_status='PASS' AND is_deleted=0 THEN title ELSE NULL END title,
+               CASE WHEN masking_status='PASS' AND is_deleted=0 THEN description ELSE NULL END description,
+               CASE WHEN masking_status='PASS' AND is_deleted=0 THEN function_module ELSE NULL END function_module,
+               CASE WHEN masking_status='PASS' AND is_deleted=0 THEN problem_type ELSE NULL END problem_type,
+               CASE WHEN masking_status='PASS' AND is_deleted=0 THEN usage_stage ELSE NULL END usage_stage,
+               CASE WHEN masking_status='PASS' AND is_deleted=0 THEN severity_level ELSE NULL END severity_level,
+               CASE WHEN masking_status='PASS' AND is_deleted=0 THEN issue_category ELSE NULL END issue_category,
+               masking_status,is_deleted,created_at,updated_at
+        FROM t_feedback_content WHERE source_id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY source_id
+    </select>
+    <select id="findEligibleAfter" resultType="com.feedback.model.po.cluster.ClusterContentPo">
+        SELECT <include refid="columns"/> FROM t_feedback_content
+        WHERE masking_status = 'PASS' AND is_deleted = 0 AND source_id &gt; #{afterSourceId}
+        ORDER BY source_id LIMIT #{limit}
+    </select>
+</mapper>

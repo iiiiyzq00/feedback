@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.NerAllowlistMapper">
+  <select id="findActiveTerms" resultType="string">SELECT config_desc FROM t_system_config
+    WHERE config_type='NER_ALLOWLIST' AND is_active=1 ORDER BY CHAR_LENGTH(config_desc) DESC,id</select>
+  <select id="findAll" resultType="com.feedback.model.po.masking.NerAllowlistPo">SELECT
+    COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.legacyId')) AS UNSIGNED),id) id,
+    config_desc term,scope_key type,record_status status,config_version list_version,change_reason reason,
+    record_version lifecycle_version,created_at,effective_to retired_at FROM t_system_config
+    WHERE config_type='NER_ALLOWLIST' ORDER BY id DESC</select>
+  <select id="countVersions" resultType="int">SELECT COUNT(DISTINCT config_version) FROM t_system_config
+    WHERE config_type='NER_ALLOWLIST'</select>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_system_config(config_key,config_type,
+    config_version,config_value,config_schema_version,lifecycle_status,approval_status,scope_key,record_status,
+    record_version,config_desc,change_reason,is_active,created_by) VALUES(CONCAT('NER_ALLOWLIST:',UUID()),
+    'NER_ALLOWLIST',#{row.version},JSON_OBJECT('term',#{row.term},'type',#{row.type}),'ner-allowlist-v1','ACTIVE',
+    'APPROVED',#{row.type},'ACTIVE',0,#{row.term},#{row.reason},1,#{row.actor})</insert>
+  <update id="retire">UPDATE t_system_config SET lifecycle_status='RETIRED',record_status='RETIRED',effective_to=NOW(3),
+    record_version=record_version+1,change_reason=#{reason},is_active=0,updated_at=NOW(3)
+    WHERE config_type='NER_ALLOWLIST'
+    AND COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.legacyId')) AS UNSIGNED),id)=#{id}
+    AND record_status='ACTIVE' AND record_version=#{expectedVersion}</update>
+</mapper>

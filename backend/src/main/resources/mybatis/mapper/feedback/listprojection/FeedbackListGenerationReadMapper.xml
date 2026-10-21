@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListGenerationReadMapper">
+    <select id="findActive" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListProjectionGenerationPo">
+        SELECT id,generation_key,generation_status,build_cursor_source_id,build_fence_source_id,expected_source_count,
+               projected_source_count,rejected_source_count,content_checksum,verified_mutation_epoch,
+               verified_member_checksum,analysis_projection_version,verified_analysis_checksum,
+               verified_analysis_identity_checksum,projected_analysis_identity_count,
+               verified_at,cutover_mutation_epoch,failure_code,failure_summary,
+               created_by,activated_by,created_at,updated_at,activated_at,completed_at
+        FROM t_phase_one_feedback_list_projection_generation
+        WHERE generation_status='ACTIVE'
+        ORDER BY id
+    </select>
+</mapper>
+

@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterReclassificationRunMapper">
+  <sql id="columns">id, public_id, request_id, run_status, reason, requested_by, snapshot_safe_count,
+    processed_count, linked_existing_count, new_cluster_count, error_detail, lease_holder,
+    lease_expires_at, started_at, completed_at, rolled_back_at, created_at, updated_at</sql>
+  <select id="findById" resultType="com.feedback.model.po.cluster.ClusterReclassificationRunPo">
+    SELECT <include refid="columns"/> FROM t_cluster_reclassification_run WHERE id = #{id}
+  </select>
+  <select id="lockById" resultType="com.feedback.model.po.cluster.ClusterReclassificationRunPo">
+    SELECT <include refid="columns"/> FROM t_cluster_reclassification_run WHERE id = #{id} FOR UPDATE
+  </select>
+  <select id="findByRequestId" resultType="com.feedback.model.po.cluster.ClusterReclassificationRunPo">
+    SELECT <include refid="columns"/> FROM t_cluster_reclassification_run WHERE request_id = #{requestId}
+  </select>
+  <select id="findLatest" resultType="com.feedback.model.po.cluster.ClusterReclassificationRunPo">
+    SELECT <include refid="columns"/> FROM t_cluster_reclassification_run ORDER BY id DESC LIMIT 1
+  </select>
+  <select id="lockAnyActive" resultType="long">
+    SELECT id FROM t_cluster_reclassification_run
+    WHERE run_status IN ('REQUESTED','RUNNING','FINALIZING','ROLLING_BACK')
+    <if test="excludeId != null">AND id &lt;&gt; #{excludeId}</if>
+    ORDER BY id LIMIT 1 FOR UPDATE
+  </select>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">
+    INSERT INTO t_cluster_reclassification_run(public_id, request_id, run_status, reason, requested_by,
+      snapshot_safe_count, started_at)
+    VALUES(#{row.publicId}, #{row.requestId}, 'RUNNING', #{row.reason}, #{row.requestedBy},
+      #{row.snapshotSafeCount}, NOW(3))
+  </insert>
+  <select id="claimable" resultType="long">
+    SELECT id FROM t_cluster_reclassification_run
+    WHERE run_status IN ('REQUESTED','RUNNING')
+      AND (lease_expires_at IS NULL OR lease_expires_at &lt; NOW(3) OR lease_holder = #{holder})
+    ORDER BY id LIMIT 1 FOR UPDATE
+  </select>
+  <update id="claim">UPDATE t_cluster_reclassification_run SET run_status='RUNNING', lease_holder=#{holder},
+    lease_expires_at=DATE_ADD(NOW(3),INTERVAL 2 MINUTE), started_at=COALESCE(started_at,NOW(3)), updated_at=NOW(3)
+    WHERE id=#{id} AND run_status IN ('REQUESTED','RUNNING')</update>
+  <update id="renew">UPDATE t_cluster_reclassification_run SET lease_expires_at=DATE_ADD(NOW(3),INTERVAL 2 MINUTE),
+    updated_at=NOW(3) WHERE id=#{id} AND run_status='RUNNING' AND lease_holder=#{holder}</update>
+  <update id="beginFinalizing">UPDATE t_cluster_reclassification_run SET run_status='FINALIZING',
+    lease_expires_at=DATE_ADD(NOW(3),INTERVAL 2 MINUTE),updated_at=NOW(3)
+    WHERE id=#{id} AND run_status='RUNNING' AND lease_holder=#{holder}</update>
+  <update id="complete">UPDATE t_cluster_reclassification_run SET run_status='COMPLETED',lease_holder=NULL,
+    lease_expires_at=NULL,completed_at=NOW(3),updated_at=NOW(3)
+    WHERE id=#{id} AND run_status='FINALIZING' AND lease_holder=#{holder}</update>
+  <update id="beginRollback">UPDATE t_cluster_reclassification_run SET run_status='ROLLING_BACK',lease_holder=#{holder},
+    lease_expires_at=DATE_ADD(NOW(3),INTERVAL 2 MINUTE),error_detail=NULL,updated_at=NOW(3) WHERE id=#{id}</update>
+  <update id="completeRollback">UPDATE t_cluster_reclassification_run SET run_status='ROLLED_BACK',lease_holder=NULL,
+    lease_expires_at=NULL,rolled_back_at=NOW(3),updated_at=NOW(3),error_detail=NULL WHERE id=#{id}</update>
+  <update id="resumeFailed">UPDATE t_cluster_reclassification_run SET run_status='RUNNING',error_detail=NULL,
+    lease_holder=NULL,lease_expires_at=NULL,completed_at=NULL,updated_at=NOW(3) WHERE id=#{id} AND run_status='FAILED'</update>
+  <update id="resumeFailedOrCompleted">UPDATE t_cluster_reclassification_run SET run_status='RUNNING',error_detail=NULL,
+    lease_holder=NULL,lease_expires_at=NULL,completed_at=NULL,updated_at=NOW(3)
+    WHERE id=#{id} AND run_status IN ('FAILED','COMPLETED')</update>
+  <update id="fail">UPDATE t_cluster_reclassification_run SET run_status='FAILED',lease_holder=NULL,
+    lease_expires_at=NULL,error_detail=#{detail},updated_at=NOW(3) WHERE id=#{id}
+    <if test="holder != null">AND (lease_holder=#{holder} OR lease_holder IS NULL)</if></update>
+  <update id="updateSnapshotSafeCount">UPDATE t_cluster_reclassification_run SET snapshot_safe_count=#{safe},updated_at=NOW(3)
+    WHERE id=#{id}</update>
+  <update id="updateCounts">UPDATE t_cluster_reclassification_run SET processed_count=#{counts.processed},
+    linked_existing_count=#{counts.linkedExisting},new_cluster_count=#{counts.newClusters},updated_at=NOW(3) WHERE id=#{id}</update>
+</mapper>
+

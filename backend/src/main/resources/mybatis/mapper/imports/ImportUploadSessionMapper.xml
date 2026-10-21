@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.imports.ImportUploadSessionMapper">
+  <sql id="columns">id,BIN_TO_UUID(upload_file_id) upload_file_id,source_channel,total_chunks,total_size_bytes,upload_status,expires_at,sheet_name,header_hash,quality_error_code,quality_error_summary,quality_suggestion</sql>
+  <insert id="insertIfAbsent">INSERT IGNORE INTO t_import_row(batch_id,record_type,upload_file_id,source_channel,total_chunks,total_size_bytes,upload_status,expires_at) VALUES(NULL,'UPLOAD_SESSION',UUID_TO_BIN(#{fileId}),#{channel},#{totalChunks},0,'UPLOADING',#{expiresAt})</insert>
+  <select id="findByFileId" resultType="com.feedback.model.po.imports.ImportUploadSessionPo">SELECT <include refid="columns"/> FROM t_import_row WHERE record_type='UPLOAD_SESSION' AND upload_file_id=UUID_TO_BIN(#{fileId})</select>
+  <select id="lockByFileId" resultType="com.feedback.model.po.imports.ImportUploadSessionPo">SELECT <include refid="columns"/> FROM t_import_row WHERE record_type='UPLOAD_SESSION' AND upload_file_id=UUID_TO_BIN(#{fileId}) FOR UPDATE</select>
+  <select id="findReady" resultType="com.feedback.model.po.imports.ImportUploadSessionPo">SELECT <include refid="columns"/> FROM t_import_row WHERE record_type='UPLOAD_SESSION' AND upload_status='ASSEMBLING' AND expires_at&gt;CURRENT_TIMESTAMP(3) ORDER BY updated_at LIMIT 1 FOR UPDATE SKIP LOCKED</select>
+  <update id="addSize">UPDATE t_import_row SET total_size_bytes=total_size_bytes+#{size},updated_at=#{updatedAt} WHERE id=#{id} AND record_type='UPLOAD_SESSION'</update>
+  <update id="markAssembling">UPDATE t_import_row SET upload_status='ASSEMBLING',sheet_name=#{filename},header_hash=#{hash},quality_error_summary=#{requestedSheet},quality_suggestion=#{dates},updated_at=#{updatedAt} WHERE id=#{id} AND record_type='UPLOAD_SESSION'</update>
+  <update id="markCompleted">UPDATE t_import_row SET upload_status='COMPLETED',quality_error_summary=#{batchId},updated_at=#{updatedAt} WHERE id=#{id} AND record_type='UPLOAD_SESSION'</update>
+  <update id="markFailed">UPDATE t_import_row SET upload_status='FAILED',quality_error_code=#{code},updated_at=#{updatedAt} WHERE id=#{id}</update>
+</mapper>

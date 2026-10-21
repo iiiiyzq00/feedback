@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthFeishuOrgFactMapper">
+  <!-- 成功同步时幂等覆盖组织事实，并清除上一次失败码。 -->
+  <insert id="upsert">
+    INSERT INTO t_auth_feishu_user_org_fact (
+      user_id,
+      group_ids,
+      department_ids,
+      employment_status,
+      synced_at,
+      last_error_code
+    ) VALUES (
+      #{userId},
+      CAST(#{groupsJson} AS JSON),
+      CAST(#{departmentsJson} AS JSON),
+      #{status},
+      NOW(3),
+      NULL
+    )
+    ON DUPLICATE KEY UPDATE
+      group_ids = VALUES(group_ids),
+      department_ids = VALUES(department_ids),
+      employment_status = VALUES(employment_status),
+      synced_at = VALUES(synced_at),
+      last_error_code = NULL
+  </insert>
+
+  <!-- 失败时保留已有组织事实，只刷新同步时间和最近错误码；首次失败创建 UNKNOWN 占位记录。 -->
+  <insert id="markFailure">
+    INSERT INTO t_auth_feishu_user_org_fact (
+      user_id,
+      group_ids,
+      department_ids,
+      employment_status,
+      synced_at,
+      last_error_code
+    ) VALUES (
+      #{userId},
+      JSON_ARRAY(),
+      JSON_ARRAY(),
+      'UNKNOWN',
+      NOW(3),
+      #{errorCode}
+    )
+    ON DUPLICATE KEY UPDATE
+      synced_at = VALUES(synced_at),
+      last_error_code = VALUES(last_error_code)
+  </insert>
+</mapper>

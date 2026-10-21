@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.jira.owner.JiraOwnerWorkflowMapper">
+    <select id="findBySourceIdsForUpdate" resultType="com.feedback.model.po.jira.owner.JiraOwnerWorkflowPo">
+        SELECT feedback_source_id,distribution_status FROM t_feedback_workflow_state
+        WHERE feedback_source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY feedback_source_id FOR UPDATE
+    </select>
+    <update id="acceptBatch">
+        UPDATE t_feedback_workflow_state
+        SET distribution_status='ACCEPTED',
+            updated_by=CASE feedback_source_id
+                <foreach collection="rows" item="row">WHEN #{row.sourceId} THEN #{row.ownerUserId}</foreach>
+            END,
+            updated_at=NOW(3)
+        WHERE distribution_status='UNASSIGNED' AND feedback_source_id IN
+        <foreach collection="rows" item="row" open="(" separator="," close=")">#{row.sourceId}</foreach>
+    </update>
+</mapper>

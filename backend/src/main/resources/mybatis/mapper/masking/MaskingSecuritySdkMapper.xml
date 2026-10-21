@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingSecuritySdkMapper">
+  <sql id="view"><choose><when test="view == 'ACTIVE'">disposition_status IN ('OPEN','RETRYING')
+    AND ingest_status IN ('RETRY_PENDING','REVIEW_NEEDED','FAILED') AND ciphertext_deleted_at IS NULL</when>
+    <otherwise>disposition_status IN ('CLOSED','AUTO_ARCHIVED','RECOVERED')</otherwise></choose></sql>
+  <select id="count" resultType="long">SELECT COUNT(*) FROM t_sdk_ingest WHERE <include refid="view"/></select>
+  <select id="list" resultType="com.feedback.model.po.masking.MaskingQuarantinePo">SELECT LOWER(HEX(receipt_id)) receipt_id,
+    ingest_status status,body_processing_status body_status,contact_processing_status contact_status,urgency_class urgency,
+    retry_count,disposition_status,disposition_reason,disposition_note,disposition_at,last_error_code error_code,
+    retention_until,next_retry_at,received_at,
+    CASE WHEN retention_until&gt;NOW(3) AND ciphertext_deleted_at IS NULL
+      AND COALESCE(last_error_code,'') NOT IN ('AEADBadTagException','IllegalBlockSizeException','InvalidKeyException')
+      THEN TRUE ELSE FALSE END retryable,
+    CASE WHEN retention_until&lt;=NOW(3) OR ciphertext_deleted_at IS NOT NULL THEN '原始密文已过期或清理，需由客户端重新提交'
+      WHEN COALESCE(last_error_code,'') IN ('AEADBadTagException','IllegalBlockSizeException','InvalidKeyException')
+      THEN '密文或密钥不兼容，重复处理无法恢复，需由客户端重新提交' ELSE '可重新提交至安全处理器' END action_hint
+    FROM t_sdk_ingest WHERE <include refid="view"/> ORDER BY urgency_class DESC,received_at LIMIT #{limit} OFFSET #{offset}</select>
+  <update id="retry">UPDATE t_sdk_ingest SET ingest_status='RECEIVED',disposition_status='RETRYING',
+    body_processing_status='PENDING',retry_count=0,next_retry_at=NOW(3),last_error_code=NULL,last_error_detail=NULL,processed_at=NULL
+    WHERE receipt_id=#{receipt} AND ingest_status IN ('RETRY_PENDING','REVIEW_NEEDED','FAILED') AND retention_until&gt;NOW(3)
+    AND ciphertext_deleted_at IS NULL AND COALESCE(last_error_code,'') NOT IN ('AEADBadTagException','IllegalBlockSizeException','InvalidKeyException')</update>
+  <update id="close">UPDATE t_sdk_ingest SET disposition_status='CLOSED',disposition_reason=#{reason},disposition_note=#{note},
+    disposition_by=#{actor},disposition_at=NOW(3) WHERE receipt_id=#{receipt} AND disposition_status IN ('OPEN','RETRYING')
+    AND ingest_status IN ('RETRY_PENDING','REVIEW_NEEDED','FAILED')</update>
+  <select id="findRaw" resultType="com.feedback.model.po.masking.MaskingSdkRawPo">SELECT encrypted_data_key,payload_ciphertext,
+    payload_nonce,payload_tag FROM t_sdk_ingest WHERE receipt_id=#{receipt} AND ingest_status IN ('REVIEW_NEEDED','FAILED')
+    AND retention_until&gt;NOW(3) AND ciphertext_deleted_at IS NULL LIMIT 1</select>
+</mapper>

@@ -1,0 +1,65 @@
+# 复制为 application-local.yml（已被版本控制忽略），或者导出
+# 等价的环境变量。切勿提交真实凭据。
+# OpenAI 只通过进程环境或 macOS Keychain 配置：
+#   security add-generic-password -U -a "$USER" \
+#     -s feedback-platform-OPENAI_API_KEY -w '<project-api-key>'
+# 运行 tools/configure-openai-local.sh 可把项目 Key 与
+# 已评估的模型 ID 一并存进 macOS Keychain；安全启动器只把它们注入
+# 到后端进程里。
+spring:
+  datasource:
+    username: feedback
+    password: replace-with-local-database-password
+  data:
+    redis:
+      host: ${REDIS_HOST:127.0.0.1}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+
+# 本地要与旧版 2.6.3-private 消费端互通，必须走
+# 注册中心发现。直连 URL 会触发它非标准的冲突报文格式。
+dubbo:
+  enabled: ${FEEDBACK_RPC_ENABLED:true}
+  protocol:
+    port: ${FEEDBACK_RPC_PORT:20880}
+  registry:
+    address: ${FEEDBACK_RPC_REGISTRY_ADDRESS:zookeeper://127.0.0.1:2181}
+
+app:
+  station-feedback:
+    raw-storage-secret: replace-with-an-independent-32-character-secret
+    raw-retention-days: 90
+  auth:
+    session:
+      ttl-hours: ${AUTH_SESSION_TTL_HOURS:8}
+    session-cookie:
+      # 本地与生产默认都走 HTTPS。只有针对一个明确隔离、
+      # 且绝不用于登录的明文 HTTP 测试，才关闭它。
+      secure: true
+    bootstrap:
+      username: ${AUTH_BOOTSTRAP_USERNAME:}
+      password: ${AUTH_BOOTSTRAP_PASSWORD:}
+  masking:
+    ner-enabled: true
+    fingerprint-secret: replace-with-at-least-32-random-characters
+    contact-storage-secret: replace-with-an-independent-32-character-secret
+  sdk:
+    review-retention-days: 90
+    app-secrets:
+      course: replace-with-at-least-16-random-characters
+      universal-feedback-host: replace-with-at-least-16-random-characters
+      question-bank: replace-with-at-least-16-random-characters
+      wrong-book: replace-with-at-least-16-random-characters
+      ai-tutor: replace-with-at-least-16-random-characters
+      app-store: replace-with-at-least-16-random-characters
+      health-demo: replace-with-at-least-16-random-characters
+      child-art-demo: replace-with-at-least-16-random-characters
+  imports:
+    raw-storage-secret: replace-with-an-independent-32-character-secret
+  jira400:
+    enabled: ${JIRA_400_API_ENABLED:false}
+    base-url: ${JIRA_400_BASE_URL:}
+    allowed-hosts: ${JIRA_400_ALLOWED_HOSTS:}
+    token: ${JIRA_400_API_TOKEN:}
+    jql: ${JIRA_400_JQL:}
+    time-zone: ${JIRA_400_TIME_ZONE:Asia/Shanghai}

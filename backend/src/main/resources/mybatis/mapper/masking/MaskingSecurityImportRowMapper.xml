@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingSecurityImportRowMapper">
+  <update id="retry">UPDATE t_import_row SET row_status='PENDING',quality_stage='MASKING_RETRY',quality_error_code=NULL,
+    quality_error_summary=NULL,quality_suggestion=NULL WHERE feedback_source_id=#{sourceId}
+    AND row_status IN ('REVIEW_NEEDED','FAILED') AND raw_retention_until&gt;NOW(3) AND raw_deleted_at IS NULL</update>
+</mapper>

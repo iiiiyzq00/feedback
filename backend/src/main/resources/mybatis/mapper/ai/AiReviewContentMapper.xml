@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.ai.AiReviewContentMapper">
+  <sql id="columns">source_id,title,description,function_module,issue_category,severity_level</sql>
+  <select id="findSafe" resultType="com.feedback.model.po.ai.AiReviewContentPo">SELECT <include refid="columns"/>
+    FROM t_feedback_content WHERE is_deleted=0 AND masking_status='PASS' AND source_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    <if test="modules != null">AND UPPER(COALESCE(function_module,'UNKNOWN')) IN
+      <foreach collection="modules" item="v" open="(" separator="," close=")">#{v}</foreach></if></select>
+  <select id="findByIds" resultType="com.feedback.model.po.ai.AiReviewContentPo">SELECT <include refid="columns"/>
+    FROM t_feedback_content WHERE source_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+  <update id="overrule">UPDATE t_feedback_content SET issue_category=#{category},severity_level=#{severity},updated_by=#{reviewer}
+    WHERE source_id=#{sourceId} AND is_deleted=0</update>
+  <update id="overruleBatch">UPDATE t_feedback_content SET issue_category=#{category},severity_level=#{severity},updated_by=#{reviewer}
+    WHERE source_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> AND is_deleted=0</update>
+  <update id="adoptBatch">UPDATE t_feedback_content SET issue_category=CASE source_id
+    <foreach collection="rows" item="row">WHEN #{row.sourceId} THEN #{row.category}</foreach> END,
+    severity_level=CASE source_id <foreach collection="rows" item="row">WHEN #{row.sourceId} THEN #{row.severity}</foreach> END,
+    updated_by=#{reviewer} WHERE source_id IN
+    <foreach collection="rows" item="row" open="(" separator="," close=")">#{row.sourceId}</foreach> AND is_deleted=0</update>
+</mapper>

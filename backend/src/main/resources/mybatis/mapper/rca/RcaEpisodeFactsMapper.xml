@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  Episode 事实来源：把散在四张表上的「问题对象事实」收成一行。
+
+  三条贯穿本文件的约定：
+
+  1. **一律显式列名，没有 `SELECT *`**，返回具体 PO 而不是裸 Map。
+  2. **本文件不出现 `${}` 占位符**，取值全部走 `#{}` 预处理参数。
+  3. **不做「读不到就当空」的兜底**。列缺失时让语句报错，或在 Kotlin 侧显式降级并留痕；
+     在 SQL 里用 `IFNULL`/`COALESCE` 把一个不存在的值扶正，会让「事实不可读」
+     与「事实确实是这个值」在下游无法区分。
+
+  与 Kotlin 侧的口径对齐点（改一处必须改另一处）：
+    · `problem_type IN ('CRASH','NO_RESPONSE')` ↔ EnumMappingRegistry.PROBLEM_TYPE_VALUES
+      里 Crash 与 ANR 两个现象的**规范化取值**。该列是自由文本 VARCHAR(50)，
+      取值由归一化链路按 EnumMappingRegistry 的映射写入，所以这里不能写 'ANR'
+      ——本平台的身份词表里没有这个记号，ANR 对应的规范化值是 `NO_RESPONSE`。
+    · `membership_status='ACTIVE'` ↔ V242 的 chk_episode_member_status
+-->
+<mapper namespace="com.feedback.mapper.rca.RcaEpisodeFactsMapper">
+
+  <!--
+    一个 Episode 的事实行。
+
+    四个派生字段的取法及理由：
+
+    · `cluster_member_count`：按 ACTIVE 成员数现数。**不能用 `t_feedback_episode.repeat_count`**，
+      那是「重复上报次数」，与成员数不是一个口径（V242 明确要求两者禁止相加）。
+    · `crash_anr_member_count`：跳到 `t_feedback_content` 看现象。这里必须带
+      `masking_status='PASS' AND is_deleted=0`，与 RcaIntakeCandidateMapper 同口径——
+      没通过脱敏的内容不算「现象证据」，否则一条被拦下的内容也能触发必取堆栈的门禁。
+    · `cluster_id` / `canonical_symptom`：先取本 Episode **最新**一条 RCA 任务
+      （`MAX(t2.id)`）上的簇归属，再跳到 `t_cluster` 取规范名。取最新一条而不是任意一条：
+      重新聚类后老任务上的 cluster_id 会指向被合并掉的旧簇，那是个过期答案。
+      接入期 `t_rca_agent_task.cluster_id` 恒为 NULL，于是这两列都为 NULL，是正常态。
+    · `package_name`：取最早加入的 ACTIVE 成员的包名（按 `event_time`，同刻再按 `m.id`）。
+      排序键带上 `m.id` 是为了让同一 event_time 的多个成员之间也有确定顺序——
+      只按时间排会让「哪个包名」在并列时随执行计划变化。
+  -->
+  <select id="loadEpisodeFacts" resultType="com.feedback.model.po.rca.RcaEpisodeFactsPo">
+    SELECT e.id                     AS episode_id,
+           e.tenant_key             AS tenant_key,
+           e.app_id                 AS app_id,
+           e.problem_key            AS problem_key,
+           e.error_signature        AS error_signature,
+           e.generation             AS generation,
+           e.session_opened_at      AS session_opened_at,
+           e.session_last_event_at  AS session_last_event_at,
+           e.repeat_count           AS repeat_count,
+           e.distinct_user_count    AS distinct_user_count,
+           e.distinct_device_count  AS distinct_device_count,
+           (SELECT COUNT(*)
+              FROM t_feedback_episode_member m
+             WHERE m.episode_id = e.id
+               AND m.membership_status = 'ACTIVE') AS cluster_member_count,
+           (SELECT COUNT(*)
+              FROM t_feedback_episode_member m
+              JOIN t_feedback_content c
+                ON c.source_id = m.source_id
+               AND c.masking_status = 'PASS'
+               AND c.is_deleted = 0
+             WHERE m.episode_id = e.id
+               AND m.membership_status = 'ACTIVE'
+               AND c.problem_type IN ('CRASH','NO_RESPONSE')) AS crash_anr_member_count,
+           t.cluster_id             AS cluster_id,
+           cl.canonical_symptom     AS canonical_symptom,
+           (SELECT s.package_name
+              FROM t_feedback_episode_member m
+              JOIN t_feedback_source s ON s.id = m.source_id
+             WHERE m.episode_id = e.id
+               AND m.membership_status = 'ACTIVE'
+             ORDER BY m.event_time, m.id
+             LIMIT 1)               AS package_name
+    FROM t_feedback_episode e
+    LEFT JOIN t_rca_agent_task t
+      ON t.id = (SELECT MAX(t2.id) FROM t_rca_agent_task t2 WHERE t2.episode_id = e.id)
+    LEFT JOIN t_cluster cl ON cl.id = t.cluster_id
+    WHERE e.id = #{episodeId}
+  </select>
+
+  <!--
+    该 Episode 覆盖到的应用版本。
+
+    滤掉 NULL 与空串是判据正确性问题，不是洁癖：`affected_versions.size > 1` 决定要不要
+    生成跨版本强制项，把一个「没有版本号」的成员算成另一个版本，会凭空要求一份
+    分母与对照组都拿不出来的证据，那条强制项随后必然变成阻塞性的缺口。
+
+    `ORDER BY` 让结果稳定：同一份数据重复读取得到同一列表，快照才可复算。
+  -->
+  <select id="findAffectedVersions" resultType="java.lang.String">
+    SELECT DISTINCT s.app_version
+    FROM t_feedback_episode_member m
+    JOIN t_feedback_source s ON s.id = m.source_id
+    WHERE m.episode_id = #{episodeId}
+      AND m.membership_status = 'ACTIVE'
+      AND s.app_version IS NOT NULL
+      AND s.app_version &lt;&gt; ''
+    ORDER BY s.app_version
+  </select>
+
+  <!--
+    该应用当前生效的版本对照基准。
+
+    只认 `release_status='ACTIVE'`：`DRAFT` 尚未发布、`RETIRED` 已退役，
+    两者都不代表「当前线上稳定版」，拿它们当对照组会让版本集中度结论指向一个
+    用户根本装不到的版本。取 `released_at` 最新的一条，`uk_app_version_release`
+    保证 (package_name, app_version) 唯一，所以同一包名下并按时间不会出现并列歧义。
+
+    源表缺失时本条语句会以 SQLState 42S02 失败，由调用方按「可选增强不可用」降级——
+    这是本文件里唯一允许降级的语句，理由见 Mapper 接口的 KDoc。
+  -->
+  <select id="findActiveControlVersion" resultType="java.lang.String">
+    SELECT f.control_version
+    FROM t_app_version_release_fact f
+    WHERE f.package_name = #{packageName}
+      AND f.release_status = 'ACTIVE'
+    ORDER BY f.released_at DESC
+    LIMIT 1
+  </select>
+
+</mapper>

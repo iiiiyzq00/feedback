@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthPolicyDataPermissionMapper">
+  <!-- 仅操作 FEISHU_POLICY 来源的数据范围，不覆盖管理员显式配置。 -->
+  <select id="findFeishuPolicyScopes" resultType="com.feedback.model.po.auth.AuthPolicyScopePo">
+    SELECT
+      scope_type,
+      scope_value
+    FROM t_auth_data_permission
+    WHERE subject_type = 'USER'
+      AND subject_id = #{subjectId}
+      AND grant_source = 'FEISHU_POLICY'
+    ORDER BY id
+  </select>
+
+  <delete id="deleteFeishuPolicyScopes">
+    DELETE FROM t_auth_data_permission
+    WHERE subject_type = 'USER'
+      AND subject_id = #{subjectId}
+      AND grant_source = 'FEISHU_POLICY'
+  </delete>
+
+  <insert id="insertFeishuPolicyScope">
+    INSERT INTO t_auth_data_permission (
+      subject_type,
+      subject_id,
+      scope_type,
+      scope_value,
+      access_level,
+      effect,
+      grant_source,
+      source_ref
+    ) VALUES (
+      'USER',
+      #{subjectId},
+      #{scopeType},
+      #{scopeValue},
+      'READ',
+      'ALLOW',
+      'FEISHU_POLICY',
+      'APPROVED_POLICY'
+    )
+  </insert>
+</mapper>

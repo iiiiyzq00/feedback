@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListApplicationDictionaryMapper">
+    <select id="findNames" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListApplicationDictionaryPo">
+        SELECT DISTINCT COALESCE(NULLIF(source_app_name,''),NULLIF(source_product_name,'')) application_name
+        FROM t_channel_station_feedback
+        WHERE COALESCE(NULLIF(source_app_name,''),NULLIF(source_product_name,'')) IS NOT NULL
+        ORDER BY CHAR_LENGTH(application_name) DESC,application_name
+        LIMIT #{limit}
+    </select>
+</mapper>

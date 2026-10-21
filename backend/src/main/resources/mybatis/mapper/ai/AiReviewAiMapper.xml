@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.ai.AiReviewAiMapper">
+  <select id="findPending" resultType="com.feedback.model.po.ai.AiReviewAiPo">SELECT source_id,ai_summary,ai_category,
+    ai_severity,ai_confidence,ai_explanation,CAST(evidence_codes AS CHAR) evidence_codes,ai_processed_at
+    FROM t_feedback_ai WHERE review_status='PENDING' AND ai_processed_at IS NOT NULL AND source_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+  <update id="complete">UPDATE t_feedback_ai SET review_status=#{status},reviewed_by=#{reviewer},reviewed_at=NOW(3),
+    review_comment=#{comment} WHERE source_id=#{sourceId} AND review_status='PENDING'</update>
+  <update id="completeBatch">UPDATE t_feedback_ai SET review_status=#{status},reviewed_by=#{reviewer},reviewed_at=NOW(3),
+    review_comment=#{comment} WHERE source_id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> AND review_status='PENDING'</update>
+</mapper>

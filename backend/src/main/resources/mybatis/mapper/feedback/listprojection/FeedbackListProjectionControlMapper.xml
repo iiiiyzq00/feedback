@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListProjectionControlMapper">
+    <select id="findForUpdate" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListProjectionControlPo">
+        SELECT control_id,mutation_epoch,updated_at
+        FROM t_phase_one_feedback_list_projection_control
+        WHERE control_id=1
+        FOR UPDATE
+    </select>
+    <update id="incrementEpoch">
+        UPDATE t_phase_one_feedback_list_projection_control
+        SET mutation_epoch=mutation_epoch+1
+        WHERE control_id=1 AND mutation_epoch=#{expectedEpoch}
+    </update>
+</mapper>
+

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.NotificationOperationsMapper">
+ <sql id="filter">WHERE record_type='NOTIFICATION'<if test="channel != null"> AND notify_channel=#{channel}</if>
+  <if test="status != null"> AND notify_status=#{status}</if><if test="alertId != null"> AND alert_instance_id=#{alertId}</if></sql>
+ <select id="count" resultType="long">SELECT COUNT(*) FROM t_alert_notification <include refid="filter"/></select>
+ <select id="findPage" resultType="com.feedback.model.po.alert.NotificationOperationPo">SELECT id,rule_code,
+  alert_instance_id,notify_channel channel,notify_status status,retry_count attempts,max_retries,next_attempt_at,
+  last_attempt_at,sent_at delivered_at,last_error_type error_type,last_error_summary error_summary,
+  provider_message_id,created_at FROM t_alert_notification <include refid="filter"/> ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}</select>
+ <select id="overview" resultType="com.feedback.model.po.alert.NotificationChannelOverviewPo">SELECT notify_channel channel,
+  COUNT(*) total,SUM(notify_status='DELIVERED') delivered,SUM(notify_status IN ('FAILED','DEAD_LETTER')) failed,
+  SUM(notify_status='DEAD_LETTER' AND dead_letter_status='OPEN') open_dead_letters,
+  ROUND(100*SUM(notify_status='DELIVERED')/NULLIF(COUNT(*),0),2) delivery_rate FROM t_alert_notification
+  WHERE record_type='NOTIFICATION' AND created_at&gt;=DATE_SUB(NOW(),INTERVAL #{hours} HOUR)
+  GROUP BY notify_channel ORDER BY notify_channel</select>
+ <select id="queue" resultType="com.feedback.model.po.alert.NotificationQueueOverviewPo">SELECT
+  COALESCE(SUM(notify_status IN ('PENDING','SENT','FAILED')),0) pending,
+  COALESCE(TIMESTAMPDIFF(SECOND,MIN(CASE WHEN notify_status IN ('PENDING','SENT','FAILED') THEN created_at END),NOW()),0) oldest_pending_seconds,
+  COALESCE(SUM(notify_status='DEAD_LETTER' AND dead_letter_status='OPEN'),0) open_dead_letters
+  FROM t_alert_notification WHERE record_type='NOTIFICATION'</select>
+</mapper>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?><!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertQueryIncidentMapper">
+ <select id="count" resultType="long">SELECT COUNT(*) FROM t_incident</select>
+ <select id="page" resultType="com.feedback.model.po.alert.AlertQueryIncidentPo">SELECT id,incident_title title,incident_status status,incident_severity severity,lifecycle_version,incident_commander commander_id,opened_at,resolved_at FROM t_incident ORDER BY opened_at DESC LIMIT #{limit} OFFSET #{offset}</select>
+ <select id="find" resultType="com.feedback.model.po.alert.AlertQueryIncidentPo">SELECT id,incident_title title,incident_status status,incident_severity severity,lifecycle_version,incident_commander commander_id,opened_at,resolved_at FROM t_incident WHERE id=#{id}</select>
+ <select id="full" resultType="com.feedback.model.po.alert.AlertQueryIncidentFullPo">SELECT id,public_id,incident_title,incident_status,lifecycle_version,incident_commander,investigation_started_at,incident_severity,opened_at,resolved_at,resolution_summary,closed_at,closure_summary,status_changed_by,status_reason,archived_at,created_at,updated_at FROM t_incident WHERE id=#{id}</select>
+ <update id="transfer">UPDATE t_incident SET incident_commander=#{user},lifecycle_version=lifecycle_version+1,status_reason=#{reason},status_changed_by=#{actor} WHERE id=#{id} AND lifecycle_version=#{version} AND incident_status NOT IN ('CLOSED','ARCHIVED')</update>
+</mapper>

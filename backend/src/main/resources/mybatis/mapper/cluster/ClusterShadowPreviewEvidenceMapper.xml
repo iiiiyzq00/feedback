@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterShadowPreviewEvidenceMapper">
+  <!--
+    仅跟随指定 generation 的 actionable member 读取展示所需最小字段。非 PASS 或已删除正文在
+    数据库边界内空化，来源业务 ID、包名、地域和 canonical identity 标识不得进入预览进程。
+  -->
+  <select id="findByGeneration" resultType="com.feedback.model.po.cluster.ClusterShadowPreviewEvidencePo">
+    SELECT m.feedback_source_id AS source_id,
+           s.source_channel,
+           CASE WHEN c.masking_status='PASS' AND c.is_deleted=0 THEN c.title ELSE NULL END AS title,
+           CASE WHEN c.masking_status='PASS' AND c.is_deleted=0 THEN c.description ELSE NULL END AS description,
+           CASE WHEN c.masking_status='PASS' AND c.is_deleted=0 THEN c.function_module ELSE NULL END AS function_module,
+           CASE WHEN c.masking_status='PASS' AND c.is_deleted=0 THEN c.issue_category ELSE NULL END AS issue_category,
+           c.masking_status,
+           c.is_deleted
+    FROM t_cluster_shadow_candidate_member m
+    INNER JOIN t_feedback_source s ON s.id=m.feedback_source_id
+    INNER JOIN t_feedback_content c ON c.source_id=m.feedback_source_id
+    WHERE m.generation_id=#{generationId}
+      AND m.cluster_key_hash IS NOT NULL
+    ORDER BY m.feedback_source_id
+  </select>
+</mapper>

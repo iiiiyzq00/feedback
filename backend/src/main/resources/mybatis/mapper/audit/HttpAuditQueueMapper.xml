@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.audit.HttpAuditQueueMapper">
+  <insert id="enqueue">INSERT IGNORE INTO t_http_audit_queue(actor_id,operation,audit_class,outcome,target_type,
+    target_id,request_id,client_ip,event_detail) VALUES(#{row.actor},#{row.operation},#{row.auditClass},#{row.outcome},
+    #{row.targetType},#{row.targetId},#{row.requestId},#{row.clientIp},CAST(#{row.detailJson} AS JSON))</insert>
+  <update id="claim">UPDATE t_http_audit_queue SET task_status='PROCESSING',lease_holder=#{holder},
+    lease_expires_at=DATE_ADD(NOW(3),INTERVAL 1 MINUTE),updated_at=NOW(3)
+    WHERE id=(SELECT id FROM (SELECT id FROM t_http_audit_queue
+      WHERE task_status IN ('PENDING','RETRY_PENDING','PROCESSING')
+      AND (next_retry_at IS NULL OR next_retry_at&lt;=NOW(3))
+      AND (task_status&lt;&gt;'PROCESSING' OR lease_expires_at&lt;NOW(3)) ORDER BY id LIMIT 1) candidate)</update>
+  <select id="findClaimed" resultType="com.feedback.model.po.audit.HttpAuditTaskPo">SELECT id,actor_id,operation,
+    audit_class,outcome,target_type,target_id,request_id,client_ip,event_detail,retry_count FROM t_http_audit_queue
+    WHERE lease_holder=#{holder} AND task_status='PROCESSING'</select>
+  <update id="complete">UPDATE t_http_audit_queue SET task_status='COMPLETED',completed_at=NOW(3),lease_holder=NULL,
+    lease_expires_at=NULL,error_detail=NULL WHERE id=#{id}</update>
+  <update id="fail">UPDATE t_http_audit_queue SET task_status=#{status},retry_count=#{retry},
+    next_retry_at=IF(#{terminal},NOW(3),DATE_ADD(NOW(3),INTERVAL #{delay} SECOND)),lease_holder=NULL,
+    lease_expires_at=NULL,error_detail=#{error} WHERE id=#{id}</update>
+</mapper>

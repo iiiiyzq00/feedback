@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sync.IndexFeedbackAiMapper">
+  <select id="countPending" resultType="long">SELECT COUNT(*) FROM t_feedback_ai
+    WHERE search_index_status&lt;&gt;'SYNCED' OR vector_index_status&lt;&gt;'SYNCED'</select>
+  <sql id="columns">source_id,ai_category,ai_severity,ai_summary,ai_processed_at,search_index_status,
+    vector_index_status,index_masking_rule_version</sql>
+  <select id="findAfter" resultType="com.feedback.model.po.sync.IndexFeedbackAiPo">SELECT <include refid="columns"/>
+    FROM t_feedback_ai WHERE source_id&gt;#{afterId} ORDER BY source_id LIMIT #{limit}</select>
+  <select id="findById" resultType="com.feedback.model.po.sync.IndexFeedbackAiPo">SELECT <include refid="columns"/>
+    FROM t_feedback_ai WHERE source_id=#{id}</select>
+  <update id="markSearchSynced">UPDATE t_feedback_ai SET search_document_id=#{searchId},search_index_status='SYNCED',
+    updated_at=NOW(3) WHERE source_id=#{id}</update>
+  <update id="markVectorSynced">UPDATE t_feedback_ai SET milvus_vector_id=#{vectorId},vector_index_status='SYNCED',
+    embedding_model_version=#{model},index_masking_rule_version=#{ruleVersion},embedding_dimension=#{dimension},
+    embedding_generated_at=NOW(3),updated_at=NOW(3) WHERE source_id=#{id}</update>
+  <update id="markVectorUnavailable">UPDATE t_feedback_ai SET vector_index_status='FAILED',milvus_vector_id=NULL,
+    index_masking_rule_version=#{ruleVersion},updated_at=NOW(3) WHERE source_id=#{id}</update>
+  <update id="markDeleted">UPDATE t_feedback_ai SET search_index_status='SYNCED',vector_index_status=#{vectorStatus},
+    search_document_id=NULL,milvus_vector_id=NULL WHERE source_id=#{id}</update>
+  <update id="markPending">UPDATE t_feedback_ai SET search_index_status='PENDING',vector_index_status='PENDING',
+    search_document_id=NULL,milvus_vector_id=NULL WHERE source_id=#{id}</update>
+</mapper>

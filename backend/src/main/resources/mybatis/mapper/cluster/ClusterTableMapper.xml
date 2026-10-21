@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterTableMapper">
+    <sql id="columns">id, public_id, cluster_name, cluster_name_key, product_scope, function_module,
+        issue_category, canonical_symptom, canonical_object, canonical_trigger, error_signature,
+        total_record_count, channel_distribution, cluster_status, lifecycle_version, statistics_version,
+        statistics_reconciled_at, merged_into_cluster_id, split_from_cluster_id, status_changed_by,
+        status_changed_at, status_reason, vector_index_status, search_index_status, created_at, updated_at</sql>
+
+    <select id="findByIds" resultType="com.feedback.model.po.cluster.ClusterPo">
+        SELECT <include refid="columns"/> FROM t_cluster WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY id
+    </select>
+    <select id="lockByIds" resultType="com.feedback.model.po.cluster.ClusterPo">
+        SELECT <include refid="columns"/> FROM t_cluster WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+        ORDER BY id FOR UPDATE
+    </select>
+    <select id="findByNameKeys" resultType="com.feedback.model.po.cluster.ClusterPo">
+        SELECT <include refid="columns"/> FROM t_cluster
+        WHERE cluster_name_key IN
+        <foreach collection="nameKeys" item="key" open="(" separator="," close=")">#{key}</foreach>
+        AND cluster_status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">#{status}</foreach>
+        ORDER BY id
+    </select>
+    <select id="lockByNameKeys" resultType="com.feedback.model.po.cluster.ClusterPo">
+        SELECT <include refid="columns"/> FROM t_cluster
+        WHERE cluster_name_key IN
+        <foreach collection="nameKeys" item="key" open="(" separator="," close=")">#{key}</foreach>
+        AND cluster_status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">#{status}</foreach>
+        ORDER BY id FOR UPDATE
+    </select>
+    <select id="findByProductScopeAndStatuses" resultType="com.feedback.model.po.cluster.ClusterPo">
+        SELECT <include refid="columns"/> FROM t_cluster
+        WHERE product_scope = #{productScope} AND cluster_status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">#{status}</foreach>
+        ORDER BY updated_at DESC, id LIMIT #{limit}
+    </select>
+    <select id="findByProductScopeSignatureAndStatuses" resultType="com.feedback.model.po.cluster.ClusterPo">
+        SELECT <include refid="columns"/> FROM t_cluster
+        WHERE product_scope = #{productScope} AND error_signature = #{signature} AND cluster_status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">#{status}</foreach>
+        ORDER BY updated_at DESC, id LIMIT #{limit}
+    </select>
+    <select id="findByExactProfile" resultType="com.feedback.model.po.cluster.ClusterPo">
+        SELECT <include refid="columns"/> FROM t_cluster
+        WHERE product_scope = #{productScope}
+          AND function_module &lt;=&gt; #{functionModule}
+          AND issue_category &lt;=&gt; #{issueCategory}
+          AND canonical_symptom = #{symptom}
+          AND cluster_status IN
+        <foreach collection="statuses" item="status" open="(" separator="," close=")">#{status}</foreach>
+        ORDER BY updated_at DESC, id LIMIT #{limit}
+    </select>
+    <select id="findIdsAfter" resultType="long">
+        SELECT id FROM t_cluster WHERE id &gt; #{afterId} ORDER BY id LIMIT #{limit}
+    </select>
+
+    <insert id="insertOrReuse" useGeneratedKeys="true" keyProperty="row.id">
+        INSERT INTO t_cluster(public_id, cluster_name, cluster_name_key, product_scope, function_module,
+          issue_category, canonical_symptom, canonical_object, canonical_trigger, error_signature,
+          total_record_count, channel_distribution, cluster_status, vector_index_status, search_index_status,
+          split_from_cluster_id)
+        VALUES(#{row.publicId}, #{row.clusterName}, #{row.clusterNameKey}, #{row.productScope},
+          #{row.functionModule}, #{row.issueCategory}, #{row.canonicalSymptom}, #{row.canonicalObject},
+          #{row.canonicalTrigger}, #{row.errorSignature}, 0, JSON_OBJECT(), 'ACTIVE', 'PENDING', 'PENDING',
+          #{row.splitFromClusterId})
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)
+    </insert>
+    <insert id="insertLegacy" useGeneratedKeys="true" keyProperty="row.id">
+        INSERT INTO t_cluster(public_id,cluster_name,cluster_name_key,product_scope,function_module,issue_category,
+          canonical_symptom,canonical_object,canonical_trigger,error_signature,total_record_count,channel_distribution,
+          cluster_status,lifecycle_version,statistics_version,merged_into_cluster_id,split_from_cluster_id,
+          status_changed_by,status_changed_at,status_reason,vector_index_status,search_index_status)
+        VALUES(#{row.publicId},#{row.clusterName},#{row.clusterNameKey},#{row.productScope},#{row.functionModule},
+          #{row.issueCategory},#{row.canonicalSymptom},#{row.canonicalObject},#{row.canonicalTrigger},#{row.errorSignature},
+          #{row.totalRecordCount},CAST(#{row.channelDistribution} AS JSON),#{row.clusterStatus},#{row.lifecycleVersion},
+          #{row.statisticsVersion},#{row.mergedIntoClusterId},#{row.splitFromClusterId},#{row.statusChangedBy},
+          #{row.statusChangedAt},#{row.statusReason},#{row.vectorIndexStatus},#{row.searchIndexStatus})
+    </insert>
+    <insert id="insertAll">
+        INSERT INTO t_cluster(public_id, cluster_name, cluster_name_key, product_scope, function_module,
+          issue_category, canonical_symptom, canonical_object, canonical_trigger, error_signature,
+          total_record_count, channel_distribution, cluster_status, vector_index_status, search_index_status,
+          split_from_cluster_id) VALUES
+        <foreach collection="rows" item="row" separator=",">
+          (#{row.publicId}, #{row.clusterName}, #{row.clusterNameKey}, #{row.productScope},
+           #{row.functionModule}, #{row.issueCategory}, #{row.canonicalSymptom}, #{row.canonicalObject},
+           #{row.canonicalTrigger}, #{row.errorSignature}, 0, JSON_OBJECT(), 'ACTIVE', 'PENDING', 'PENDING',
+           #{row.splitFromClusterId})
+        </foreach>
+    </insert>
+
+    <update id="updateStatusCas">
+        UPDATE t_cluster SET cluster_status = #{row.targetStatus}, lifecycle_version = lifecycle_version + 1,
+          merged_into_cluster_id = #{row.mergedIntoClusterId}, status_changed_by = #{row.operatorId},
+          status_changed_at = NOW(3), status_reason = #{row.reason},
+          total_record_count = CASE WHEN #{row.clearStatistics} THEN 0 ELSE total_record_count END,
+          channel_distribution = CASE WHEN #{row.clearStatistics} THEN JSON_OBJECT() ELSE channel_distribution END,
+          search_index_status = 'PENDING', vector_index_status = 'PENDING', updated_at = NOW(3)
+        WHERE id = #{row.id} AND lifecycle_version = #{row.expectedVersion}
+    </update>
+    <update id="updateStatusesCas">
+        UPDATE t_cluster SET
+          cluster_status = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.id} THEN #{row.targetStatus}</foreach>
+          ELSE cluster_status END,
+          lifecycle_version = lifecycle_version + 1,
+          merged_into_cluster_id = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.id} THEN #{row.mergedIntoClusterId}</foreach>
+          ELSE merged_into_cluster_id END,
+          status_changed_by = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.id} THEN #{row.operatorId}</foreach>
+          ELSE status_changed_by END,
+          status_changed_at = NOW(3),
+          status_reason = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.id} THEN #{row.reason}</foreach>
+          ELSE status_reason END,
+          total_record_count = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.id} THEN IF(#{row.clearStatistics},0,total_record_count)</foreach>
+          ELSE total_record_count END,
+          channel_distribution = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.id} THEN IF(#{row.clearStatistics},JSON_OBJECT(),channel_distribution)</foreach>
+          ELSE channel_distribution END,
+          search_index_status = 'PENDING', vector_index_status = 'PENDING', updated_at = NOW(3)
+        WHERE
+        <foreach collection="rows" item="row" separator=" OR ">
+          (id = #{row.id} AND lifecycle_version = #{row.expectedVersion})
+        </foreach>
+    </update>
+    <update id="bumpLifecycleCas">
+        UPDATE t_cluster SET lifecycle_version = lifecycle_version + 1, status_changed_by = #{row.operatorId},
+          status_changed_at = NOW(3), status_reason = #{row.reason}, search_index_status = 'PENDING',
+          vector_index_status = 'PENDING', updated_at = NOW(3)
+        WHERE id = #{row.id} AND lifecycle_version = #{row.expectedVersion}
+    </update>
+    <update id="reopenResolved">
+        UPDATE t_cluster SET cluster_status = 'REOPENED', lifecycle_version = lifecycle_version + 1,
+          status_changed_by = NULL, status_changed_at = NOW(3), status_reason = #{reason},
+          search_index_status = 'PENDING', vector_index_status = 'PENDING', updated_at = NOW(3)
+        WHERE id = #{id} AND lifecycle_version = #{expectedVersion} AND cluster_status = 'RESOLVED'
+    </update>
+    <update id="updateStatistics">
+        UPDATE t_cluster SET
+          total_record_count = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.clusterId} THEN #{row.totalCount}</foreach>
+          ELSE total_record_count END,
+          channel_distribution = CASE id
+          <foreach collection="rows" item="row">WHEN #{row.clusterId} THEN CAST(#{row.channelDistribution} AS JSON)</foreach>
+          ELSE channel_distribution END,
+          statistics_version = statistics_version + 1, statistics_reconciled_at = NOW(3),
+          search_index_status = 'PENDING', vector_index_status = 'PENDING', updated_at = NOW(3)
+        WHERE id IN
+        <foreach collection="rows" item="row" open="(" separator="," close=")">#{row.clusterId}</foreach>
+    </update>
+    <update id="evolveName">
+        UPDATE t_cluster SET cluster_name = #{newName}, cluster_name_key = #{nameKey},
+          canonical_symptom = #{newName}, lifecycle_version = lifecycle_version + 1,
+          search_index_status = 'PENDING', vector_index_status = 'PENDING', updated_at = NOW(3)
+        WHERE id = #{id} AND cluster_name = #{oldName} AND lifecycle_version = #{expectedVersion}
+          AND cluster_status IN ('ACTIVE','MITIGATING','REOPENED')
+    </update>
+</mapper>
+

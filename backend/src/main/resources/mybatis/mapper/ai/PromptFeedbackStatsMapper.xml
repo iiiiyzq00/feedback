@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.ai.PromptFeedbackStatsMapper">
+    <select id="stats" resultType="com.feedback.model.po.ai.PromptFeedbackStatsPo">
+        SELECT classification_prompt_version AS prompt_version,
+               ROUND(AVG(ai_confidence), 6) AS avg_confidence,
+               ROUND(SUM(review_status = 'CORRECTED') / NULLIF(COUNT(*), 0), 6) AS correction_rate
+        FROM t_feedback_ai
+        WHERE classification_prompt_version IN
+        <foreach collection="versions" item="version" open="(" separator="," close=")">#{version}</foreach>
+        GROUP BY classification_prompt_version
+    </select>
+</mapper>

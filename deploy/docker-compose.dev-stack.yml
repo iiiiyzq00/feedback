@@ -1,0 +1,177 @@
+name: feedback-dev-stack
+
+# 自包含开发栈：MySQL + Redis + Elasticsearch（+ 可选 RocketMQ）+ backend。
+# 与 docker-compose.backend.yml 的区别：不依赖宿主机上任何已运行的中间件，
+# 一条 docker compose up 即可从空卷拉起完整环境（Flyway 自动建表，
+# AdminBootstrap 按 .dev-secrets 自动创建首个本地管理员）。
+#
+# 用法：
+#   ./gradlew :backend:bootJar          # 首次或代码变更后，先构建 jar
+#   docker compose -f deploy/docker-compose.dev-stack.yml --env-file deploy/.dev-secrets up -d
+#   可选 RocketMQ：追加 --profile mq（并把 backend 的 MQ_ENABLED 改为 "true" 后重建）
+#
+# 注意：backend 端口与 host 网络版 compose 互斥，启动本栈前先
+#   docker compose -f deploy/docker-compose.backend.yml down
+#
+# 端口与宿主机现有中间件错开（两套中间件可并存）：
+#   MySQL 23306 / Redis 26379 / ES 29200 / RocketMQ namesrv 29876、broker 20911
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: feedback-dev-mysql
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    environment:
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD}
+      MYSQL_DATABASE: feedback_platform_local_deploy
+      TZ: Asia/Shanghai
+    ports:
+      - "127.0.0.1:23306:3306"
+    volumes:
+      - feedback-dev-mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p$$MYSQL_ROOT_PASSWORD"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7-alpine
+    container_name: feedback-dev-redis
+    ports:
+      - "127.0.0.1:26379:6379"
+    volumes:
+      - feedback-dev-redis:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.18.8
+    container_name: feedback-dev-elasticsearch
+    environment:
+      discovery.type: single-node
+      # 仅本机开发：关闭 xpack 安全层，无 TLS/账号。端口只绑 127.0.0.1。
+      xpack.security.enabled: "false"
+      ES_JAVA_OPTS: -Xms1g -Xmx1g
+    ports:
+      - "127.0.0.1:29200:9200"
+    volumes:
+      - feedback-dev-es:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+
+  rmq-namesrv:
+    image: apache/rocketmq:5.3.3
+    container_name: feedback-dev-rmq-namesrv
+    profiles: ["mq"]
+    command: sh mqnamesrv
+    ports:
+      - "127.0.0.1:29876:9876"
+    volumes:
+      - feedback-dev-rmq-namesrv:/home/rocketmq/store
+
+  rmq-broker:
+    image: apache/rocketmq:5.3.3
+    container_name: feedback-dev-rmq-broker
+    profiles: ["mq"]
+    # brokerIP1 必须是客户端可达的地址：栈内客户端走 docker DNS 服务名。
+    command: sh mqbroker -n rmq-namesrv:9876 autoCreateTopicEnable=true brokerIP1=rmq-broker
+    depends_on:
+      - rmq-namesrv
+    ports:
+      - "127.0.0.1:20911:10911"
+    volumes:
+      - feedback-dev-rmq-broker:/home/rocketmq/store
+
+  backend:
+    build:
+      context: ..
+      dockerfile: deploy/backend.Dockerfile
+    image: feedback-platform-backend:dev
+    container_name: feedback-platform-backend
+    # 与 host 网络版共用容器名/镜像，两栈同一时间只能跑一个。
+    ports:
+      - "18080:18080"
+    environment:
+      # ---- 栈内中间件（服务名解析，见 docker DNS）----
+      DB_URL: jdbc:mysql://mysql:3306/feedback_platform_local_deploy?useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai
+      DB_USERNAME: ${DB_USERNAME}
+      DB_PASSWORD: ${DB_PASSWORD}
+      # application.yml 里 redis/elasticsearch 无占位符，走 Spring Boot 宽松绑定覆盖。
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: "6379"
+      SPRING_ELASTICSEARCH_URIS: http://elasticsearch:9200
+      # --profile mq 启动后，把 MQ_ENABLED 改为 "true" 即接入栈内 RocketMQ。
+      MQ_ENABLED: "false"
+      MQ_NAMESRV_ADDR: rmq-namesrv:9876
+
+      # ---- 启动期强校验的密钥（长度 ≥32）----
+      MASKING_FINGERPRINT_SECRET: ${MASKING_FINGERPRINT_SECRET}
+      CONTACT_STORAGE_SECRET: ${CONTACT_STORAGE_SECRET}
+      IMPORT_RAW_STORAGE_SECRET: ${IMPORT_RAW_STORAGE_SECRET}
+      STATION_RAW_STORAGE_SECRET: ${IMPORT_RAW_STORAGE_SECRET}
+      COURSE_SDK_SECRET: ${COURSE_SDK_SECRET}
+      QUESTION_BANK_SDK_SECRET: ${QUESTION_BANK_SDK_SECRET}
+      WRONG_BOOK_SDK_SECRET: ${WRONG_BOOK_SDK_SECRET}
+      AI_TUTOR_SDK_SECRET: ${AI_TUTOR_SDK_SECRET}
+      APP_STORE_SDK_SECRET: ${APP_STORE_SDK_SECRET}
+      HEALTH_DEMO_SDK_SECRET: ${HEALTH_DEMO_SDK_SECRET}
+      CHILD_ART_DEMO_SDK_SECRET: ${CHILD_ART_DEMO_SDK_SECRET}
+      UNIVERSAL_FEEDBACK_SDK_SECRET: ${UNIVERSAL_FEEDBACK_SDK_SECRET}
+
+      # ---- 首次启动的本地管理员（AdminBootstrap 幂等创建，密码 ≥12 位）----
+      AUTH_BOOTSTRAP_USERNAME: ${AUTH_BOOTSTRAP_USERNAME}
+      AUTH_BOOTSTRAP_PASSWORD: ${AUTH_BOOTSTRAP_PASSWORD}
+
+      # ---- 本地放宽：口令（LOCAL）主体持有工作区权限即可见渠道数据/问题深度分析 ----
+      # 生产语义下工作区只对飞书 SSO 主体开放；本机没有真实飞书租户，必须放开
+      # 「来源必须是 SSO」这一条（app.security.local-workspace.enabled），权限本身仍要显式具备。
+      APP_SECURITY_LOCAL_WORKSPACE_ENABLED: "true"
+
+      # ---- 工作区数据开关：列表/分析投影默认失败关闭，本地栈显式开启 ----
+      # 不开则渠道数据/问题深度分析菜单进入后报 FEEDBACK_FEEDBACK_LIST_READ_DISABLED。
+      PHASE_ONE_LIST_PROJECTION_READ_ENABLED: "true"
+      PHASE_ONE_PROBLEM_ANALYSIS_PROJECTION_READ_ENABLED: "true"
+
+      # ---- BGE-M3 真向量（容器 glibc 2.35，可加载 DJL native）----
+      EMBEDDING_PROVIDER: onnx-bge-m3
+      BGE_M3_PATH: /models/bge-m3
+
+      # ---- 最小启动：关掉非必需外部依赖 ----
+      FEEDBACK_RPC_ENABLED: "false"
+      MILVUS_ENABLED: "false"
+      XXL_JOB_ENABLED: "false"
+
+      # ---- RCA 主模型声明（模型已端口化，经 OPENAI_MODEL 注入）----
+      # 此处只声明型号。真实联调还需注入 OPENAI_API_KEY；缺失时 AI 返回
+      # LLM_NOT_CONFIGURED，确定性链路照常工作。生产经 env-file/KMS 注入，不进仓库。
+      OPENAI_MODEL: gpt-5.4
+
+    volumes:
+      - ${HOME}/.local/models/bge-m3:/models/bge-m3:ro
+      - feedback-djl-cache:/root/.djl.ai
+      - /usr/share/fonts:/usr/share/fonts:ro
+
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+    restart: unless-stopped
+
+volumes:
+  feedback-dev-mysql:
+  feedback-dev-redis:
+  feedback-dev-es:
+  feedback-dev-rmq-namesrv:
+  feedback-dev-rmq-broker:
+  feedback-djl-cache:

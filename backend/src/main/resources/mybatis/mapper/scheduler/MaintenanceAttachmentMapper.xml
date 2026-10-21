@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.scheduler.MaintenanceAttachmentMapper">
+    <select id="candidates" resultType="com.feedback.model.po.scheduler.MaintenanceAttachmentCandidatePo">
+        SELECT id, storage_path
+        FROM t_feedback_attachment
+        WHERE retention_until &lt; NOW(3)
+          AND deleted_at IS NULL
+        ORDER BY id
+        LIMIT #{limit}
+        FOR UPDATE
+    </select>
+    <update id="markDeleted">
+        UPDATE t_feedback_attachment
+        SET deleted_at = NOW(3),
+            delete_reason = 'RETENTION_EXPIRED',
+            storage_path = NULL
+        WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+          AND deleted_at IS NULL
+    </update>
+</mapper>

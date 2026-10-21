@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingConfigMapper">
+    <sql id="columns">id,config_key,config_type,config_subtype,config_version,config_value,lifecycle_status,
+      approval_status,scope_key,record_status,record_version,subject_user_id,config_desc,is_active,created_at,
+      effective_from,effective_to</sql>
+
+    <select id="findActiveByKey" resultType="com.feedback.model.po.masking.MaskingConfigPo">
+        SELECT <include refid="columns"/> FROM t_system_config
+        WHERE config_key=#{configKey} AND is_active=1 ORDER BY id DESC LIMIT 1
+    </select>
+    <select id="findDraftRelease" resultType="com.feedback.model.po.masking.MaskingConfigPo">
+        SELECT <include refid="columns"/> FROM t_system_config
+        WHERE config_type='MASKING_RELEASE' AND config_version=#{version} AND record_status='DRAFT' AND is_active=0
+        ORDER BY id DESC LIMIT 1
+    </select>
+    <select id="findByType" resultType="com.feedback.model.po.masking.MaskingConfigPo">
+        SELECT <include refid="columns"/> FROM t_system_config WHERE config_type=#{configType} ORDER BY id DESC
+    </select>
+    <select id="findReleaseForUpdate" resultType="com.feedback.model.po.masking.MaskingConfigPo">
+        SELECT <include refid="columns"/> FROM t_system_config
+        WHERE config_type='MASKING_RELEASE' AND config_version=#{version} FOR UPDATE
+    </select>
+    <select id="findByTypeAndKey" resultType="com.feedback.model.po.masking.MaskingConfigPo">
+        SELECT <include refid="columns"/> FROM t_system_config
+        WHERE config_type=#{configType} AND config_key=#{configKey} ORDER BY id DESC LIMIT 1
+    </select>
+    <select id="countByType" resultType="int">
+        SELECT COUNT(*) FROM t_system_config WHERE config_type=#{configType}
+    </select>
+    <insert id="insertRelease">
+        INSERT INTO t_system_config(
+          config_key,config_type,config_version,config_value,config_schema_version,lifecycle_status,approval_status,
+          scope_key,record_status,config_desc,is_active,created_by)
+        VALUES(
+          CONCAT('MASKING_RELEASE:',UUID()),'MASKING_RELEASE',#{version},
+          JSON_OBJECT('enabledRules',CAST(#{rulesJson} AS JSON),'nerAllowlistVersion',#{allowlist}),
+          'masking-release-v1','DRAFT','PENDING',#{allowlist},'DRAFT',#{reason},0,#{actor})
+    </insert>
+    <update id="publishRelease">
+        UPDATE t_system_config SET lifecycle_status='PUBLISHED',record_status='PUBLISHED',effective_from=CURRENT_TIMESTAMP(3),
+          config_desc=#{reason},is_active=1,updated_at=CURRENT_TIMESTAMP(3),
+          config_value=JSON_SET(config_value,'$.publishedBy',#{actor},'$.publishedAt',CURRENT_TIMESTAMP(3))
+        WHERE id=#{id} AND config_type='MASKING_RELEASE'
+    </update>
+    <update id="deactivateRuntimeKeys">
+        UPDATE t_system_config SET is_active=0 WHERE config_key IN
+        <foreach collection="keys" item="key" open="(" separator="," close=")">#{key}</foreach>
+        AND is_active=1
+    </update>
+    <insert id="insertRuntimeConfigs">
+        INSERT INTO t_system_config(config_key,config_version,config_value,config_desc,is_active,created_by) VALUES
+        <foreach collection="rows" item="row" separator=",">
+          (#{row.configKey},#{row.configVersion},CAST(#{row.configValue} AS JSON),#{row.configDesc},1,#{row.createdBy})
+        </foreach>
+    </insert>
+</mapper>

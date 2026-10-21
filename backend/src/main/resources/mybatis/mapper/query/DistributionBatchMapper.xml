@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.DistributionBatchMapper">
+  <select id="lockById" resultType="com.feedback.model.po.query.DistributionBatchPo">SELECT id,batch_status,initiated_by,
+    failure_reason,compensation_attempts FROM t_feedback_distribution_batch WHERE id=#{id} FOR UPDATE</select>
+  <update id="markCompensating">UPDATE t_feedback_distribution_batch SET batch_status='COMPENSATING',
+    failure_reason=#{reason},failed_task_id=#{taskId},next_compensation_at=NOW(3)
+    WHERE id=#{id} AND batch_status NOT IN ('COMPENSATED')</update>
+  <update id="markCompensated">UPDATE t_feedback_distribution_batch SET batch_status='COMPENSATED',
+    compensated_at=NOW(3),next_compensation_at=NULL WHERE id=#{id}</update>
+  <update id="markFailed">UPDATE t_feedback_distribution_batch SET batch_status='COMPENSATION_FAILED',
+    compensation_attempts=#{attempts},failure_reason=#{reason},next_compensation_at=DATE_ADD(NOW(3),INTERVAL #{delay} SECOND)
+    WHERE id=#{id}</update>
+  <select id="findDueIds" resultType="long">SELECT id FROM t_feedback_distribution_batch
+    WHERE batch_status IN ('COMPENSATING','COMPENSATION_FAILED')
+    AND (next_compensation_at IS NULL OR next_compensation_at&lt;=NOW(3)) ORDER BY id LIMIT #{limit}</select>
+</mapper>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.IngestFailureOccurrenceMapper">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_alert_occurrence(instance_id,evaluation_snapshot,evaluation_time)
+        VALUES(#{instanceId},CAST(#{snapshotJson} AS JSON),CURRENT_TIMESTAMP(3))
+    </insert>
+</mapper>

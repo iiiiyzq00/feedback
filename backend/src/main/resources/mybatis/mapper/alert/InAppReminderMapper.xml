@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.InAppReminderMapper">
+    <select id="page" resultType="com.feedback.model.po.alert.InAppReminderPo">
+        SELECT id, feedback_source_id AS feedback_id, reminded_by AS actor_id,
+               reminder_type, reminder_message AS message, created_at
+        FROM t_feedback_reminder
+        WHERE target_user_id = #{user}
+        <if test="before != null">AND id &lt; #{before}</if>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM t_feedback_reminder WHERE target_user_id = #{user}
+    </select>
+    <select id="visible" resultType="int">
+        SELECT COUNT(*) FROM t_feedback_reminder WHERE id = #{id} AND target_user_id = #{user}
+    </select>
+</mapper>

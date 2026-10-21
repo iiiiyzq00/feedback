@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.detail.FeedbackDetailContentMapper">
+    <select id="findBySourceId" resultType="com.feedback.model.po.feedback.detail.FeedbackDetailContentPo">
+        SELECT source_id, title, description, function_module, usage_stage, problem_type, issue_category,
+               severity_level, user_sentiment, reproducibility, processing_status, masking_status,
+               mapping_rule_version, normalization_version, data_quality_score, quality_rule_version,
+               updated_at, is_deleted AS deleted, created_at
+        FROM t_feedback_content
+        WHERE source_id = #{sourceId}
+    </select>
+    <select id="findNavigationFacts" resultType="com.feedback.model.po.feedback.detail.FeedbackNavigationContentPo">
+        SELECT source_id, function_module, masking_status, is_deleted AS deleted
+        FROM t_feedback_content
+        WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+    </select>
+</mapper>
+

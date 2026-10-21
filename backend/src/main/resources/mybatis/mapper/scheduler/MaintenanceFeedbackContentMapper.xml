@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.scheduler.MaintenanceFeedbackContentMapper">
+    <select id="maskingStatuses" resultType="com.feedback.model.po.scheduler.MaintenanceMaskingStatusPo">
+        SELECT source_id, masking_status
+        FROM t_feedback_content
+        WHERE source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+        FOR SHARE
+    </select>
+</mapper>

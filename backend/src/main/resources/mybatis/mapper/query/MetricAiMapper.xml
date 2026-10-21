@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.MetricAiMapper">
+  <select id="findProcessed" resultType="com.feedback.model.po.query.MetricAiFactPo">SELECT source_id,review_status
+    FROM t_feedback_ai WHERE ai_processed_at IS NOT NULL AND source_id IN
+    <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+</mapper>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.imports.ImportQualityRowMapper">
+  <select id="counts" resultType="com.feedback.model.po.imports.ImportQualityRowCountsPo">SELECT COUNT(*) rows_seen,COALESCE(SUM(row_status IN ('IMPORTED','UPDATED','SKIPPED_DUPLICATE','SKIPPED_STALE')),0) completed,COALESCE(SUM(row_status IN ('IMPORTED','UPDATED')),0) imported_success,COALESCE(SUM(row_status='REVIEW_NEEDED'),0) reviewed,COALESCE(SUM(row_status IN ('INVALID','FAILED')),0) invalid_rows,COALESCE(SUM(row_status='SKIPPED_DUPLICATE'),0) duplicate_rows,COALESCE(SUM(row_status='SKIPPED_STALE'),0) stale_rows,COALESCE(SUM(quality_error_code='REQUIRED_FIELD_MISSING'),0) required_errors,COALESCE(SUM(quality_error_code='INVALID_TIME'),0) time_errors,COALESCE(SUM(quality_error_code LIKE 'UNMAPPED_%'),0) enum_errors FROM t_import_row WHERE batch_id=#{batchId} AND record_type='ROW'</select>
+  <select id="attachmentCounts" resultType="com.feedback.model.po.imports.ImportQualityAttachmentCountsPo">SELECT COUNT(*) attachment_total,COALESCE(SUM(final_status='AVAILABLE'),0) attachment_available FROM t_import_row WHERE batch_id=#{batchId} AND record_type='ATTACHMENT_TASK'</select>
+</mapper>

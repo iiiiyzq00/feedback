@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.audit.BusinessAuditChainMapper">
+  <select id="latestHash" resultType="string">SELECT event_hash FROM t_system_audit_log
+    WHERE chain_epoch=2 AND event_hash IS NOT NULL ORDER BY id DESC LIMIT 1</select>
+  <insert id="insert">INSERT INTO t_system_audit_log(user_id,operation,audit_class,outcome,target_type,target_id,
+    request_id,operation_detail,detail_schema_version,chain_epoch,previous_event_hash,event_hash,ip_address)
+    VALUES(#{row.actor},#{row.operation},#{row.auditClass},#{row.outcome},#{row.targetType},#{row.targetId},#{row.requestId},
+    CAST(#{row.detailJson} AS JSON),'v1',2,#{row.previousHash},#{row.eventHash},#{row.clientIp})</insert>
+  <select id="findLatest" resultType="com.feedback.model.po.audit.BusinessAuditChainPo">SELECT id,user_id,operation,
+    audit_class,outcome,target_type,target_id,request_id,CAST(operation_detail AS CHAR) operation_detail,
+    previous_event_hash,event_hash FROM t_system_audit_log WHERE chain_epoch=2 AND event_hash IS NOT NULL
+    ORDER BY id DESC LIMIT #{limit}</select>
+</mapper>

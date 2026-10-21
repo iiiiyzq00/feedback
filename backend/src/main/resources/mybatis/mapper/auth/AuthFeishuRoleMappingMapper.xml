@@ -1,0 +1,122 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthFeishuRoleMappingMapper">
+  <resultMap id="mapping" type="com.feedback.model.po.auth.AuthFeishuRoleMappingPo">
+    <id column="id" property="id"/>
+    <result column="rule_type" property="ruleType"/>
+    <result column="subject_id" property="subjectId"/>
+    <result column="subject_name" property="subjectName"/>
+    <result column="grant_kind" property="grantKind"/>
+    <result column="role_code" property="roleCode"/>
+    <result column="scope_type" property="scopeType"/>
+    <result column="scope_value" property="scopeValue"/>
+    <result column="priority" property="priority"/>
+    <result column="decision_status" property="decisionStatus"/>
+    <result column="description" property="description"/>
+    <result column="decision_reason" property="decisionReason"/>
+    <result column="version" property="version"/>
+    <result column="created_by" property="createdBy"/>
+    <result column="decided_by" property="decidedBy"/>
+    <result column="created_at" property="createdAt"/>
+    <result column="updated_at" property="updatedAt"/>
+    <result column="decided_at" property="decidedAt"/>
+  </resultMap>
+
+  <sql id="columns">
+    id,
+    rule_type,
+    subject_id,
+    subject_name,
+    grant_kind,
+    role_code,
+    scope_type,
+    scope_value,
+    priority,
+    decision_status,
+    description,
+    decision_reason,
+    version,
+    created_by,
+    decided_by,
+    created_at,
+    updated_at,
+    decided_at
+  </sql>
+
+  <!-- 管理列表按决策阶段、优先级和主键稳定排序。 -->
+  <select id="findAll" resultMap="mapping">
+    SELECT <include refid="columns"/>
+    FROM t_auth_feishu_role_mapping
+    ORDER BY
+      FIELD(decision_status, 'DRAFT', 'APPROVED', 'REJECTED', 'RETIRED'),
+      priority,
+      id
+  </select>
+
+  <!-- 运行时授权策略只读取已经完成审批的规则。 -->
+  <select id="findApproved" resultMap="mapping">
+    SELECT <include refid="columns"/>
+    FROM t_auth_feishu_role_mapping
+    WHERE decision_status = 'APPROVED'
+    ORDER BY priority, id
+  </select>
+
+  <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_auth_feishu_role_mapping (
+      rule_type,
+      subject_id,
+      subject_name,
+      grant_kind,
+      role_code,
+      scope_type,
+      scope_value,
+      priority,
+      decision_status,
+      description,
+      created_by
+    ) VALUES (
+      #{ruleType},
+      #{subjectId},
+      #{subjectName},
+      #{grantKind},
+      #{roleCode},
+      #{scopeType},
+      #{scopeValue},
+      #{priority},
+      'DRAFT',
+      #{description},
+      #{createdBy}
+    )
+  </insert>
+
+  <!-- 草稿编辑使用版本号 CAS；影响行数为 0 表示状态不允许或发生并发冲突。 -->
+  <update id="updateDraft">
+    UPDATE t_auth_feishu_role_mapping
+    SET rule_type = #{ruleType},
+        subject_id = #{subjectId},
+        subject_name = #{subjectName},
+        grant_kind = #{grantKind},
+        role_code = #{roleCode},
+        scope_type = #{scopeType},
+        scope_value = #{scopeValue},
+        priority = #{priority},
+        description = #{description},
+        version = version + 1
+    WHERE id = #{id}
+      AND version = #{version}
+      AND decision_status = 'DRAFT'
+  </update>
+
+  <!-- 决策同时校验当前状态与版本，保证审批/退役状态机的单次迁移。 -->
+  <update id="decide">
+    UPDATE t_auth_feishu_role_mapping
+    SET decision_status = #{status},
+        decision_reason = #{reason},
+        decided_by = #{actor},
+        decided_at = NOW(3),
+        version = version + 1
+    WHERE id = #{id}
+      AND version = #{version}
+      AND decision_status = #{current}
+  </update>
+</mapper>

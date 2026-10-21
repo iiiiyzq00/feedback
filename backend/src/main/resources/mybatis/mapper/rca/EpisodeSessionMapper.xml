@@ -1,0 +1,183 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  反馈信号接入的语句：Episode → 成员 → 工作项 → RCA 任务。
+
+  三条贯穿全文件的约定，改动前请先确认不是「顺手简化」：
+
+  1. **幂等靠唯一键**。三个唯一键各自挡一种重复投递，插入语句一律不做「先查后插」：
+     查与写之间没有东西保证结论仍然成立，而并发重投正是接入链路的常态。
+     冲突由语句抛出、由 EpisodeSessionAdapter 翻译成领域结果（已存在 / 已投递）。
+  2. **时间一律来自入参，不用 NOW() 代替业务时间**。会话边界、影响面窗口都要按
+     现象发生的事件时间算，用入库时间会让一批补录数据的窗口整体平移到当前时刻。
+     只有 created_at / updated_at 这两列审计时间用数据库默认值。
+  3. **去重集合从事实表 join 出来，不在 Episode 行上留副本**（见 findMemberFacts）。
+
+  与 Kotlin 侧的口径对齐点（改一处必须改另一处）：
+    · findMemberFacts 的类型过滤  ↔ MemberFactTypes（com.feedback.agent.rca.episode）
+    · findMemberEndpointKeys 的拼法 ↔ EpisodeEndpointKey.of 的 SEPARATOR
+-->
+<mapper namespace="com.feedback.mapper.rca.EpisodeSessionMapper">
+
+  <!--
+    分区内当前活跃代。分区键是「租户 + 应用 + 问题键 + 身份指纹」，不含设备：
+    按设备分区会把同一设备上的不同问题错误合并，也会把不同设备上的同一故障拆开。
+    设备维度的影响面由 distinct_device_count 表达，不参与分区。
+  -->
+  <select id="findActiveEpisode" resultType="com.feedback.model.po.rca.EpisodeSessionPo">
+    SELECT id,generation,identity_level,error_signature,session_state,session_opened_at,
+      session_last_event_at,member_revision,repeat_count,distinct_user_count,distinct_device_count
+    FROM t_feedback_episode
+    WHERE tenant_key=#{tenantKey}
+      AND app_id=#{appId}
+      AND problem_key=#{problemKey}
+      AND identity_fingerprint=#{identityFingerprint}
+    ORDER BY generation DESC
+    LIMIT 1
+  </select>
+
+  <!--
+    已见身份事实。两次 join 的来源不同，含义也不同：
+    t_feedback_identity 提供「这条信号登记过哪些身份指纹」（按类型），
+    过滤条件与 MemberFactTypes 一致——哪些类型算人、哪些算设备，只在这一处 SQL 里表达一次。
+    只取 ACTIVE 成员：被置为 SUPERSEDED 的 revision 是历史轨迹，不该再影响当前去重集合。
+  -->
+  <select id="findMemberFacts" resultType="com.feedback.model.po.rca.EpisodeMemberFactPo">
+    SELECT i.identity_type, i.fingerprint
+    FROM t_feedback_episode_member m
+    JOIN t_feedback_identity i ON i.source_id = m.source_id
+    WHERE m.episode_id = #{episodeId}
+      AND m.membership_status = 'ACTIVE'
+      AND i.identity_type IN ('DEVICE_SN','ACCOUNT','PHONE','EMAIL')
+  </select>
+
+  <!--
+    已见端点键。分隔符是 CHAR(31)（ASCII 单元分隔符），与 EpisodeEndpointKey.SEPARATOR 一致。
+    不用 '/' 或 ':'：来源原始 ID 里可能出现它们，于是 ("a/b","c") 与 ("a","b/c") 会拼出同一个键，
+    把两条无关信号判成重复端点。
+  -->
+  <select id="findMemberEndpointKeys" resultType="string">
+    SELECT CONCAT(s.source_channel, CHAR(31), s.source_record_id)
+    FROM t_feedback_episode_member m
+    JOIN t_feedback_source s ON s.id = m.source_id
+    WHERE m.episode_id = #{episodeId}
+      AND m.membership_status = 'ACTIVE'
+  </select>
+
+  <!--
+    新建 Episode。generation 由调用方按分区当前代数 +1 给出，是业务语义上的「第几代」。
+
+    冲突不在这里兜底：`uk_episode_partition` 命中说明另一个事务正在为同一分区开新会话
+    （并发的首次接入），此时正确的处置是让本条信号整体回滚、由投递方重投
+    ——那时会话已存在，重投会走并入路径，而不是两条信号各建一个会话。
+    这里若改成 INSERT IGNORE，会把「并发创建」和「CHECK 约束不满足」一起吞掉：
+    后者会让一条非法信号悄悄消失，且计数更新照样执行。
+  -->
+  <insert id="insertEpisode" useGeneratedKeys="true" keyProperty="id">
+    INSERT INTO t_feedback_episode (
+      public_id,tenant_key,app_id,problem_key,identity_fingerprint,generation,identity_level,
+      error_signature,session_state,session_opened_at,session_last_event_at,
+      repeat_count,distinct_user_count,distinct_device_count,member_revision,policy_version
+    ) VALUES (
+      UUID_TO_BIN(#{publicId}),#{tenantKey},#{appId},#{problemKey},#{identityFingerprint},#{generation},
+      #{identityLevel},#{errorSignature},#{sessionState},#{sessionOpenedAt},#{sessionLastEventAt},
+      #{repeatCount},#{distinctUserCount},#{distinctDeviceCount},#{memberRevision},#{policyVersion}
+    )
+  </insert>
+
+  <!--
+    追加成员。命中 `uk_episode_member_revision (episode_id, source_id, membership_revision)`
+    即「同一条 source 的同一 revision 已经在里面了」，也就是重复投递——
+    由适配器翻译成幂等命中，计数一个都不会动。
+  -->
+  <insert id="insertMember">
+    INSERT INTO t_feedback_episode_member (
+      episode_id,source_id,membership_revision,identity_level,join_reason,event_time,is_duplicate_endpoint
+    ) VALUES (
+      #{episodeId},#{sourceId},#{membershipRevision},#{identityLevel},#{joinReason},#{eventTime},#{duplicateEndpoint}
+    )
+  </insert>
+
+  <!--
+    更新计数与会话状态。error_signature 用 IFNULL 做「只在原值为空时补写」：
+    迟到到达的归一化结果补上即可，绝不覆盖已有签名——覆盖会把「签名变了」这件事抹掉，
+    而签名变化正是开启新 generation 的依据。
+
+    member_revision 用 GREATEST 取高水位而不是直接赋值：并发并入时后到的
+    （但代数更小的）写法不能把它往回拨，修订号在外部看来只能是单调的。
+
+    这里没有乐观锁条件，是已知边界：本语句是「读—算—写」，
+    两条**不同 source** 的并发并入可能丢一次计数更新。见 EpisodeIntakeService 的类注释。
+  -->
+  <update id="updateEpisode">
+    UPDATE t_feedback_episode SET
+      session_state=#{sessionState},
+      session_last_event_at=GREATEST(session_last_event_at,#{sessionLastEventAt}),
+      repeat_count=#{repeatCount},
+      distinct_user_count=#{distinctUserCount},
+      distinct_device_count=#{distinctDeviceCount},
+      member_revision=GREATEST(member_revision,#{memberRevision}),
+      error_signature=IFNULL(error_signature,#{fillErrorSignature})
+    WHERE id=#{episodeId}
+  </update>
+
+  <!--
+    建工作项或取回已有的那个。
+
+    `ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)` 是这个库既有的「建或取回」写法
+    （见 ClusterCommandLedgerTableMapper.claim）：冲突时不抛错、不改动已有行，
+    只把 LAST_INSERT_ID 置成已存在那一行的主键，于是 useGeneratedKeys 回填的
+    `row.id` 在插入与冲突两条路径上是同一个含义。
+
+    用它而不是「插入失败再查一次」的理由是并入路径：每次并入都会尝试插入一条必然冲突的行，
+    既多一个往返，也会白白消耗自增值。也不设 `incident_id` / `alert_instance_id`：
+    告警不是创建工作项的前提，「无告警的反馈也要能先行 RCA」正是把这两列留空的原因。
+  -->
+  <insert id="upsertWorkItem" useGeneratedKeys="true" keyProperty="id">
+    <!--
+      参数是 PO 本身（`upsertWorkItem(row: WorkItemInsertPo)`，没有 @Param），
+      所以属性一律用**裸名**，并且 `keyProperty` 也是 `id` 而不是 `row.id`。
+      原先写成 `row.xxx` 时真库上报
+      `ReflectionException: There is no getter for property named 'row'`——
+      与本文件其余七条语句的写法不一致是这里的线索：另外七条都用裸名。
+      写回主键后由适配器从 PO 上读，与 `insertEpisode` 同一做法。
+    -->
+    INSERT INTO t_feedback_work_item (
+      public_id,episode_id,work_item_status,first_seen_at,last_seen_at
+    ) VALUES (
+      UUID_TO_BIN(#{publicId}),#{episodeId},'OPEN',#{firstSeenAt},#{lastSeenAt}
+    )
+    ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)
+  </insert>
+
+  <!--
+    触达工作项。last_seen_at 只前进（与 chk_work_item_time_order 一致），
+    重开次数只在本次判定为 REOPENED 时累加——重复投递不会走到这条语句，
+    所以「重开次数」不会被一次重投灌成假数字。
+
+    状态直接置 REOPENED 而不是做状态机校验：会话重开是事实，
+    工作项当前是 RESOLVED 还是 CLOSED 只影响它离开时的姿势，不影响它需要被重新处理。
+  -->
+  <update id="touchWorkItem">
+    UPDATE t_feedback_work_item SET
+      last_seen_at=GREATEST(last_seen_at,#{lastSeenAt}),
+      work_item_status=IF(#{reopened},'REOPENED',work_item_status),
+      reopen_count=reopen_count+IF(#{reopened},1,0)
+    WHERE episode_id=#{episodeId}
+  </update>
+
+  <!--
+    投递 RCA 任务。其余列走表默认值：task_status=PENDING、current_node=CONTEXT_BUILD、
+    state_version=0、lease_generation=0、attempt_count=0，预算三列与 RcaBudgetPolicy.DEFAULT 一致。
+
+    `chk_rca_agent_terminal` 要求非 PENDING/RUNNING/RETRY_PENDING 的状态必须带 stop_reason，
+    新建即为 PENDING，所以不填 stop_reason 是合法的。
+
+    cluster_id 允许为空：聚类是异步产出的，接入期它还不存在。
+    「联合调查候选」是取证的输入，不是创建问题对象的条件。
+  -->
+  <insert id="insertRcaTask">
+    INSERT INTO t_rca_agent_task (public_id,task_key,episode_id,cluster_id)
+    VALUES (UUID_TO_BIN(#{publicId}),#{taskKey},#{episodeId},#{clusterId})
+  </insert>
+</mapper>

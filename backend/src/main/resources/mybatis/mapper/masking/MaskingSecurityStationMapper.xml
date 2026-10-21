@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingSecurityStationMapper">
+  <update id="keep">UPDATE t_channel_station_feedback SET ingest_status='REVIEW_NEEDED',last_error_code='PRIVACY_REVIEW_KEPT',
+    last_error_summary=#{reason},updated_at=NOW(3) WHERE source_id=#{sourceId}</update>
+  <update id="complete">UPDATE t_channel_station_feedback SET ingest_status='COMPLETED',processing_stage='COMPLETED',
+    last_error_code=NULL,last_error_summary=NULL,processed_at=NOW(3),updated_at=NOW(3) WHERE source_id=#{sourceId}</update>
+</mapper>

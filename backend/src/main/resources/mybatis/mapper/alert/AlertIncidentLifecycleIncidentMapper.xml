@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.AlertIncidentLifecycleIncidentMapper">
+  <select id="lock" resultType="com.feedback.model.po.alert.IncidentLifecycleStatePo">
+    SELECT incident_status, lifecycle_version, incident_commander FROM t_incident WHERE id = #{id} FOR UPDATE
+  </select>
+  <update id="transition">
+    UPDATE t_incident
+    SET incident_status = #{target}, lifecycle_version = lifecycle_version + 1, status_reason = #{reason}, status_changed_by = #{actor}
+    <choose>
+      <when test="target == 'INVESTIGATING'">, investigation_started_at = COALESCE(investigation_started_at, NOW(3)), incident_commander = COALESCE(incident_commander, #{commander})</when>
+      <when test="target == 'RESOLVED'">, resolved_at = NOW(3), resolution_summary = #{summary}</when>
+      <when test="target == 'CLOSED'">, closed_at = NOW(3), closure_summary = #{summary}</when>
+      <when test="target == 'ARCHIVED'">, archived_at = NOW(3)</when>
+    </choose>
+    WHERE id = #{id} AND lifecycle_version = #{version}
+  </update>
+</mapper>

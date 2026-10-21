@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.problem.analysis.ProblemAnalysisIdentityMapper">
+  <!-- 指纹不可逆；key ID 参与去重，避免不同轮换密钥下相同字节被错误视为同一身份。 -->
+  <select id="counts" resultType="com.feedback.model.po.problem.analysis.ProblemIdentityCountPo">
+    SELECT cluster_id,
+      NULLIF(COUNT(DISTINCT CASE WHEN identity_scope='PERSON' THEN CONCAT(fingerprint_key_id,':',HEX(fingerprint)) END),0) user_count,
+      COUNT(DISTINCT CASE WHEN identity_type='DEVICE_SN' THEN CONCAT(fingerprint_key_id,':',HEX(fingerprint)) END) device_count
+    FROM t_phase_one_feedback_cluster_identity_projection
+    WHERE generation_id=#{generationId} AND cluster_id IN
+    <foreach collection="clusterIds" item="value" open="(" separator="," close=")">#{value}</foreach>
+      AND source_channel IN
+    <foreach collection="criteria.allowedChannels" item="value" open="(" separator="," close=")">#{value}</foreach>
+    <if test="criteria.scopeModules != null">
+      AND UPPER(COALESCE(NULLIF(function_module,''),'UNKNOWN')) IN
+      <foreach collection="criteria.scopeModules" item="value" open="(" separator="," close=")">#{value}</foreach>
+    </if>
+    <if test="criteria.scopeRegions != null">
+      AND (UPPER(province_code) IN
+      <foreach collection="criteria.scopeRegions" item="value" open="(" separator="," close=")">#{value}</foreach>
+      OR UPPER(city_code) IN
+      <foreach collection="criteria.scopeRegions" item="value" open="(" separator="," close=")">#{value}</foreach>)
+    </if>
+    <if test="criteria.startTime != null">AND reported_at&gt;=#{criteria.startTime}</if>
+    <if test="criteria.endTime != null">AND reported_at&lt;=#{criteria.endTime}</if>
+    GROUP BY cluster_id
+  </select>
+</mapper>
+

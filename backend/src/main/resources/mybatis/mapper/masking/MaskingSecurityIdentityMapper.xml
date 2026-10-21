@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingSecurityIdentityMapper">
+  <select id="findAuthorized" resultType="com.feedback.model.po.masking.MaskingAuthorizedContactPo">SELECT id,identity_type,
+    contact_ciphertext,contact_nonce,contact_tag FROM t_feedback_identity WHERE source_id=#{sourceId}
+    AND contact_ciphertext IS NOT NULL AND contact_authorization_basis IN ('SDK_CONSENT','CHANNEL_GOVERNANCE')
+    AND expires_at&gt;NOW(3) ORDER BY identity_type,id</select>
+</mapper>

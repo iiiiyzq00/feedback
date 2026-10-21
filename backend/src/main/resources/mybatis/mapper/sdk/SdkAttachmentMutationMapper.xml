@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sdk.SdkAttachmentMutationMapper">
+    <select id="findByClientAttachmentId" resultType="com.feedback.model.po.sdk.SdkAttachmentIngressPo">
+        SELECT id,public_id,source_id,sdk_ingest_id,attachment_type,mime_type,file_size_bytes,file_sha256,
+          storage_path,storage_key_id,client_attachment_id,width,height,duration_seconds,annotation_data,
+          upload_status,integrity_status,decryption_status,malware_scan_status,content_review_status,
+          security_status,source_kind,retention_until
+        FROM t_feedback_attachment
+        WHERE sdk_ingest_id=#{ingestId} AND client_attachment_id=#{clientAttachmentId}
+    </select>
+
+    <insert id="insertIngress" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO t_feedback_attachment(
+          public_id,source_id,sdk_ingest_id,attachment_type,mime_type,file_size_bytes,file_sha256,storage_path,
+          storage_key_id,client_attachment_id,width,height,duration_seconds,annotation_data,upload_status,
+          integrity_status,decryption_status,malware_scan_status,content_review_status,security_status,source_kind,
+          retention_until)
+        VALUES(
+          #{publicId},#{sourceId},#{sdkIngestId},#{attachmentType},#{mimeType},#{fileSizeBytes},#{fileSha256},#{storagePath},
+          #{storageKeyId},#{clientAttachmentId},#{width},#{height},#{durationSeconds},CAST(#{annotationData} AS JSON),
+          #{uploadStatus},#{integrityStatus},#{decryptionStatus},#{malwareScanStatus},#{contentReviewStatus},
+          #{securityStatus},#{sourceKind},#{retentionUntil})
+    </insert>
+
+    <update id="linkToSource">
+        UPDATE t_feedback_attachment SET source_id=#{sourceId}
+        WHERE sdk_ingest_id=#{ingestId} AND (source_id IS NULL OR source_id=#{sourceId})
+    </update>
+</mapper>

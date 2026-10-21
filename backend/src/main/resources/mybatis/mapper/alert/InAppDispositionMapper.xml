@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.InAppDispositionMapper">
+    <select id="page" resultType="com.feedback.model.po.alert.InAppDispositionPo">
+        SELECT id, feedback_source_id AS feedback_id, handler_user_id AS actor_id,
+               event_type, old_status, new_status, event_reason AS reason, created_at
+        FROM t_feedback_disposition_event
+        WHERE event_type IN ('STATUS_CHANGED', 'REOPENED')
+          AND handler_user_id &lt;&gt; #{user}
+        <if test="before != null">AND id &lt; #{before}</if>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+    <select id="visible" resultType="com.feedback.model.po.alert.InAppDispositionPo">
+        SELECT id, feedback_source_id AS feedback_id, handler_user_id AS actor_id,
+               event_type, old_status, new_status, event_reason AS reason, created_at
+        FROM t_feedback_disposition_event
+        WHERE id = #{id} AND event_type IN ('STATUS_CHANGED', 'REOPENED')
+    </select>
+</mapper>

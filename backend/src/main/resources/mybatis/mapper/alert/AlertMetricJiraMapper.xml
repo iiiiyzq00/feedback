@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.AlertMetricJiraMapper">
+    <select id="unresolvedPage" resultType="com.feedback.model.po.alert.MetricJiraPo">
+        SELECT source_id AS raw_id, source_id, jira_created_at AS created_at
+        FROM t_channel_jira
+        WHERE resolved_at IS NULL
+          AND UPPER(COALESCE(jira_status_raw, '')) NOT IN ('CLOSED', 'RESOLVED', 'DONE')
+          AND source_id &gt; #{after}
+        ORDER BY source_id
+        LIMIT #{limit}
+    </select>
+</mapper>

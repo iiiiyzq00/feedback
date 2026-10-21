@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.InAppHandoffMapper">
+    <select id="page" resultType="com.feedback.model.po.alert.InAppHandoffPo">
+        SELECT id, feedback_source_id AS feedback_id, initiated_by AS actor_id,
+               handoff_reason AS reason, created_at
+        FROM t_feedback_handoff_task
+        WHERE to_owner_user_id = #{user}
+          AND task_status IN ('DELIVERED', 'ACCEPTED')
+        <if test="before != null">AND id &lt; #{before}</if>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+    <select id="count" resultType="long">
+        SELECT COUNT(*) FROM t_feedback_handoff_task
+        WHERE to_owner_user_id = #{user} AND task_status IN ('DELIVERED', 'ACCEPTED')
+    </select>
+    <select id="visible" resultType="int">
+        SELECT COUNT(*) FROM t_feedback_handoff_task
+        WHERE id = #{id} AND to_owner_user_id = #{user} AND task_status IN ('DELIVERED', 'ACCEPTED')
+    </select>
+</mapper>

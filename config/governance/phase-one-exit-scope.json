@@ -1,0 +1,206 @@
+{
+  "schema_version": 3,
+  "scope_id": "c0-p1-phase-one-channel-and-problem-analysis",
+  "conclusion_name": "C0-P1 一期范围子门禁关闭",
+  "accepted_scanner_contracts": [
+    {"scanner_version": "2.2.0", "rule_version": "c0a-2"}
+  ],
+  "required_endpoint_ids": [
+    "feedback-list", "feedback-export-get", "feedback-export-post", "feedback-detail",
+    "feedback-modifications", "feedback-timeline", "feedback-related", "feedback-attachments",
+    "feedback-diagnostics", "feedback-diagnostics-authorize", "feedback-attachment-authorize",
+    "feedback-attachment-stream", "feedback-external-link", "search-suggest", "problem-analysis",
+    "cluster-detail", "cluster-feedback-page"
+  ],
+  "endpoints": [
+    {"id":"feedback-list","method":"GET","path":"/api/v1/feedback","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"list"},
+    {"id":"feedback-export-get","method":"GET","path":"/api/v1/feedback/export","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"export"},
+    {"id":"feedback-export-post","method":"POST","path":"/api/v1/feedback/export","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"exportSelection"},
+    {"id":"feedback-detail","method":"GET","path":"/api/v1/feedback/{id}","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"detail"},
+    {"id":"feedback-modifications","method":"GET","path":"/api/v1/feedback/{id}/modifications","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"modifications"},
+    {"id":"feedback-timeline","method":"GET","path":"/api/v1/feedback/{id}/timeline","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"timeline"},
+    {"id":"feedback-related","method":"GET","path":"/api/v1/feedback/{id}/related","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"related"},
+    {"id":"feedback-attachments","method":"GET","path":"/api/v1/feedback/{id}/attachments","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"attachments"},
+    {"id":"feedback-diagnostics","method":"GET","path":"/api/v1/feedback/{id}/diagnostics","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"viewDiagnostics"},
+    {"id":"feedback-diagnostics-authorize","method":"POST","path":"/api/v1/feedback/{id}/diagnostics/authorize","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"authorizeDiagnostics"},
+    {"id":"feedback-attachment-authorize","method":"POST","path":"/api/v1/feedback/{id}/attachments/{attachmentId}/authorize","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"authorizeAttachment"},
+    {"id":"feedback-attachment-stream","method":"GET","path":"/api/v1/feedback/{id}/attachments/{attachmentId}/stream","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"streamAttachment"},
+    {"id":"feedback-external-link","method":"GET","path":"/api/v1/feedback/{id}/external-link","owner":"com/feedback/controller/query/PhaseOneFeedbackController","method_name":"externalLink"},
+    {"id":"search-suggest","method":"GET","path":"/api/v1/search/suggest","owner":"com/feedback/controller/query/PhaseOneSearchSuggestionController","method_name":"suggest"},
+    {"id":"problem-analysis","method":"GET","path":"/api/v1/dashboard/problem-analysis","owner":"com/feedback/controller/query/PhaseOneProblemAnalysisController","method_name":"problemAnalysis"},
+    {"id":"cluster-detail","method":"GET","path":"/api/v1/reports/cluster/{id}","owner":"com/feedback/controller/query/PhaseOneClusterReadController","method_name":"cluster"},
+    {"id":"cluster-feedback-page","method":"GET","path":"/api/v1/reports/cluster/{id}/feedback","owner":"com/feedback/controller/query/PhaseOneClusterReadController","method_name":"feedback"}
+  ],
+  "backend_required_reachable_owners": [
+    "com/feedback/controller/query/PhaseOneFeedbackController",
+    "com/feedback/controller/query/PhaseOneProblemAnalysisController",
+    "com/feedback/controller/query/PhaseOneClusterReadController",
+    "com/feedback/controller/query/PhaseOneSearchSuggestionController",
+    "com/feedback/security/PhaseOneAccessAuthorization",
+    "com/feedback/security/CurrentWebPrincipalProvider",
+    "com/feedback/security/DataPermissionService",
+    "com/feedback/security/PhaseOneContentVisibility",
+    "com/feedback/audit/BusinessAuditService",
+    "com/feedback/repository/auth/AuthDataPermissionRepository",
+    "com/feedback/persistence/auth/AuthDataPermissionMapper",
+    "com/feedback/service/query/listprojection/PhaseOneFeedbackListApplicationService",
+    "com/feedback/service/query/detail/FeedbackDetailApplicationService",
+    "com/feedback/service/query/analysis/PhaseOneProblemAnalysisApplicationService"
+  ],
+  "required_backend_cross_cutting_binding_ids": [
+    "phase-one-web-security"
+  ],
+  "backend_cross_cutting_bindings": [
+    {"id":"phase-one-web-security","source_owner":"com/feedback/config/WebSecurityConfig","source_method_names":["<init>","securityFilterChain"],"target_owner":"com/feedback/security/PhaseOneAccessAuthorization"}
+  ],
+  "backend_required_test_paths": [
+    "feedback-platform/backend/src/test/kotlin/com/feedback/controller/query/PhaseOnePublicContractIsolationTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/controller/query/PhaseOneStableReadControllerContractTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/security/PhaseOneStableReadAuthorizationMatrixTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/security/DataPermissionServiceTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/repository/auth/AuthDataPermissionRepositoryTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/persistence/AuthDataPermissionMyBatisContractTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/persistence/PhaseOneFeedbackListProjectionMyBatisContractTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/persistence/PhaseOneFeedbackDetailMyBatisContractTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/persistence/PhaseOneRemainingReadMyBatisContractTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/service/query/analysis/PhaseOneProblemAnalysisApplicationServiceTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/service/query/PhaseOneStableReadAuditContractTest.kt",
+    "feedback-platform/backend/src/test/kotlin/com/feedback/integration/PhaseOneProblemAnalysisProjectionMysqlTest.kt"
+  ],
+  "mapper_xml_roots": [
+    "feedback-platform/backend/src/main/resources/mybatis/mapper"
+  ],
+  "frontend_route_source_path": "feedback-platform/frontend/src/router/index.ts",
+  "frontend_entry_paths": [
+    "feedback-platform/frontend/src/views/channel/AllFeedbackPage.vue",
+    "feedback-platform/frontend/src/views/channel/FeedbackDetailPage.vue",
+    "feedback-platform/frontend/src/views/channel/JiraFeedbackPage.vue",
+    "feedback-platform/frontend/src/views/channel/QualityFeedbackPage.vue",
+    "feedback-platform/frontend/src/views/channel/RedblackFeedbackPage.vue",
+    "feedback-platform/frontend/src/views/channel/StationFeedbackPage.vue",
+    "feedback-platform/frontend/src/views/dashboard/ProblemAnalysis.vue",
+    "feedback-platform/frontend/src/views/report/ClusterDetail.vue"
+  ],
+  "required_frontend_shared_binding_ids": [
+    "layout-global-search", "router-auth-guard"
+  ],
+  "frontend_shared_bindings": [
+    {"id":"layout-global-search","source":"feedback-platform/frontend/src/components/layout/AppLayout.vue","target":"feedback-platform/frontend/src/components/layout/GlobalSearch.vue"},
+    {"id":"router-auth-guard","source":"feedback-platform/frontend/src/router/index.ts","target":"feedback-platform/frontend/src/router/guards.ts"}
+  ],
+  "required_frontend_route_names": [
+    "AllFeedback", "StationFeedback", "JiraFeedback", "QualityFeedback",
+    "RedblackFeedback", "FeedbackDetail", "ProblemAnalysis", "ClusterDetail"
+  ],
+  "frontend_routes": [
+    {"name":"AllFeedback","path":"channel/all","component":"feedback-platform/frontend/src/views/channel/AllFeedbackPage.vue"},
+    {"name":"StationFeedback","path":"channel/station-feedback","component":"feedback-platform/frontend/src/views/channel/StationFeedbackPage.vue"},
+    {"name":"JiraFeedback","path":"channel/jira","component":"feedback-platform/frontend/src/views/channel/JiraFeedbackPage.vue"},
+    {"name":"QualityFeedback","path":"channel/quality","component":"feedback-platform/frontend/src/views/channel/QualityFeedbackPage.vue"},
+    {"name":"RedblackFeedback","path":"channel/redblack","component":"feedback-platform/frontend/src/views/channel/RedblackFeedbackPage.vue"},
+    {"name":"FeedbackDetail","path":"channel/:id","component":"feedback-platform/frontend/src/views/channel/FeedbackDetailPage.vue"},
+    {"name":"ProblemAnalysis","path":"dashboard/analysis","component":"feedback-platform/frontend/src/views/dashboard/ProblemAnalysis.vue"},
+    {"name":"ClusterDetail","path":"report/cluster/:id","component":"feedback-platform/frontend/src/views/report/ClusterDetail.vue"}
+  ],
+  "frontend_required_contract_paths": [
+    "feedback-platform/frontend/src/api/feedback.ts",
+    "feedback-platform/frontend/src/api/dashboard.ts",
+    "feedback-platform/frontend/src/api/report.ts",
+    "feedback-platform/frontend/src/api/search.ts"
+  ],
+  "frontend_required_test_paths": [
+    "feedback-platform/frontend/src/views/channel/AllFeedbackPage.spec.ts",
+    "feedback-platform/frontend/src/views/channel/FeedbackDetailPage.spec.ts",
+    "feedback-platform/frontend/src/views/channel/JiraFeedbackPage.spec.ts",
+    "feedback-platform/frontend/src/views/channel/StationFeedbackPage.spec.ts",
+    "feedback-platform/frontend/src/views/channel/components/ChannelFeedbackList.spec.ts",
+    "feedback-platform/frontend/src/views/channel/components/phaseOneChannelColumns.spec.ts",
+    "feedback-platform/frontend/src/views/dashboard/ProblemAnalysis.spec.ts",
+    "feedback-platform/frontend/src/views/report/ClusterDetail.spec.ts",
+    "feedback-platform/frontend/src/components/evidence/GovernedDiagnosticsDialog.spec.ts",
+    "feedback-platform/frontend/src/components/evidence/GovernedEvidenceViewer.spec.ts",
+    "feedback-platform/frontend/src/components/evidence/GovernedLogPreview.spec.ts"
+  ],
+  "rule_categories": {
+    "C0.DIRECT_DB_API":"DATA_ACCESS",
+    "C0.DATABASE_WRAPPER":"DATA_ACCESS",
+    "C0.DIRECT_SQL":"DATA_ACCESS",
+    "C0.SQL_CONSTRUCTION":"DATA_ACCESS",
+    "C0.MYBATIS_SQL_BOUNDARY":"DATA_ACCESS",
+    "C0.SQL_JOIN":"QUERY_SHAPE",
+    "C0.SQL_CROSS_TABLE":"QUERY_SHAPE",
+    "C0.SQL_STORED_PROCEDURE":"QUERY_SHAPE",
+    "C0.PUBLIC_MAP_REQUEST":"API_CONTRACT",
+    "C0.PUBLIC_MAP_RESPONSE":"API_CONTRACT",
+    "C0.PUBLIC_MAP_CONTRACT":"API_CONTRACT",
+    "C0.PUBLIC_PERSISTENCE_CONTRACT":"API_CONTRACT",
+    "C0.PUBLIC_RESPONSE_TYPE_INFERRED":"API_CONTRACT",
+    "C0.API_OPERATION_DOC_MISSING":"OPENAPI_DOCUMENTATION",
+    "C0.LOCAL_PERMISSION_BRANCH":"SECURITY_CENTRALIZATION",
+    "C0.LOCAL_PRINCIPAL_CAST":"SECURITY_CENTRALIZATION"
+  },
+  "rule_prefix_categories": {
+    "C0.FRONTEND_":"FRONTEND_TYPE_SAFETY"
+  },
+  "coverage_requirements": {
+    "SCOPE_REACHABILITY":["phase_one_reachability","runtime_routes"],
+    "API_CONTRACT":["compiled_public_types"],
+    "FRONTEND_TYPE_SAFETY":["frontend_compiled_types"],
+    "SECURITY_CENTRALIZATION":["permission_runtime_contracts"]
+  },
+  "external_evidence_gates": [
+    "MYSQL_MAPPER_EXECUTION",
+    "MYSQL_TRANSACTION_ROLLBACK",
+    "MYSQL_AUTHORIZATION_MATRIX",
+    "MYSQL_AUDIT_PERSISTENCE"
+  ],
+  "external_evidence_contracts": {
+    "MYSQL_MAPPER_EXECUTION": {
+      "test_suites": [
+        "com.feedback.integration.PhaseOneProblemAnalysisProjectionMysqlTest.dedicated mysql pages both lists and twenty feedback rows with logical channels and fingerprint counts"
+      ],
+      "required_case_ids": [
+        "com.feedback.integration.PhaseOneProblemAnalysisProjectionMysqlTest#dedicated mysql pages both lists and twenty feedback rows with logical channels and fingerprint counts"
+      ]
+    },
+    "MYSQL_TRANSACTION_ROLLBACK": {
+      "test_suites": [
+        "com.feedback.integration.PhaseOneProblemAnalysisProjectionMysqlTest.transaction_rollback_gate"
+      ],
+      "required_case_ids": [
+        "com.feedback.integration.PhaseOneProblemAnalysisProjectionMysqlTest#transaction_rollback_gate"
+      ]
+    },
+    "MYSQL_AUTHORIZATION_MATRIX": {
+      "test_suites": [
+        "com.feedback.integration.PhaseOneProblemAnalysisProjectionMysqlTest.authorization_mysql_role_scope_gate",
+        "com.feedback.security.PhaseOneStableReadAuthorizationMatrixTest",
+        "com.feedback.security.DataPermissionServiceTest"
+      ],
+      "required_case_ids": [
+        "com.feedback.integration.PhaseOneProblemAnalysisProjectionMysqlTest#authorization_mysql_role_scope_gate",
+        "com.feedback.security.PhaseOneStableReadAuthorizationMatrixTest#Feishu phase-one product and technical principals may use stable reads",
+        "com.feedback.security.PhaseOneStableReadAuthorizationMatrixTest#missing authentication missing permission and local identity are rejected",
+        "com.feedback.security.DataPermissionServiceTest#missing authentication context cannot read any channel",
+        "com.feedback.security.DataPermissionServiceTest#user module and region allow lists are combined with channel scope",
+        "com.feedback.security.DataPermissionServiceTest#admin bypasses data scopes for every channel module and region",
+        "com.feedback.security.DataPermissionServiceTest#operator wildcard channel permits all channels without module or region restriction",
+        "com.feedback.security.DataPermissionServiceTest#auditor allow lists enforce channel module and either province or city",
+        "com.feedback.security.DataPermissionServiceTest#ordinary user default scope permits SDK only",
+        "com.feedback.security.DataPermissionServiceTest#deny overrides allows from either user or role",
+        "com.feedback.security.DataPermissionServiceTest#wildcard deny revokes an entire data dimension"
+      ]
+    },
+    "MYSQL_AUDIT_PERSISTENCE": {
+      "test_suites": [
+        "com.feedback.integration.PhaseOneProblemAnalysisProjectionMysqlTest.audit_persistence_gate",
+        "com.feedback.service.query.PhaseOneStableReadAuditContractTest"
+      ],
+      "required_case_ids": [
+        "com.feedback.integration.PhaseOneProblemAnalysisProjectionMysqlTest#audit_persistence_gate",
+        "com.feedback.service.query.PhaseOneStableReadAuditContractTest#audit failure prevents a validated HTTPS external link from being returned",
+        "com.feedback.service.query.PhaseOneStableReadAuditContractTest#data-scope rejection happens before external facts and audit"
+      ]
+    }
+  }
+}

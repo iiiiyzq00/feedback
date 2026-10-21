@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.applicationidentity.ApplicationIdentityAliasMapper">
+    <!-- alias 活动键、版本历史、requestId 当前读与 CAS 写入均限定在单表边界。 -->
+    <sql id="columns">
+        id,
+        BIN_TO_UUID(alias_public_id) alias_public_id,
+        source_channel,
+        alias_type,
+        normalized_alias,
+        HEX(active_alias_key) active_alias_key_hex,
+        application_identity_id,
+        alias_version,
+        binding_status,
+        evidence_type,
+        previous_binding_id,
+        request_id,
+        HEX(command_fingerprint) command_fingerprint_hex,
+        target_mapping_version_snapshot,
+        changed_by,
+        change_reason
+    </sql>
+    <select id="findActiveByKeyHexes" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityAliasPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity_alias
+        WHERE binding_status = 'ACTIVE'
+          AND active_alias_key IN
+        <foreach collection="keyHexes" item="key" open="(" separator="," close=")">
+            UNHEX(#{key})
+        </foreach>
+    </select>
+    <select id="lockActiveByPublicId" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityAliasPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity_alias
+        WHERE alias_public_id = UUID_TO_BIN(#{aliasPublicId})
+          AND binding_status = 'ACTIVE'
+        LIMIT 1
+        FOR UPDATE
+    </select>
+    <select id="findByRequestId" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityAliasPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity_alias
+        WHERE request_id = #{requestId}
+        LIMIT 1
+    </select>
+    <select id="lockByRequestId" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityAliasPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity_alias
+        WHERE request_id = #{requestId}
+        LIMIT 1
+        FOR UPDATE
+    </select>
+    <select id="findByIdentityId" resultType="com.feedback.model.po.applicationidentity.ApplicationIdentityAliasPo">
+        SELECT
+        <include refid="columns"/>
+        FROM t_application_identity_alias
+        WHERE application_identity_id = #{identityId}
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">
+        INSERT INTO t_application_identity_alias (
+            alias_public_id,
+            source_channel,
+            alias_type,
+            normalized_alias,
+            active_alias_key,
+            application_identity_id,
+            alias_version,
+            binding_status,
+            evidence_type,
+            previous_binding_id,
+            request_id,
+            command_fingerprint,
+            target_mapping_version_snapshot,
+            changed_by,
+            change_reason,
+            created_at
+        )
+        VALUES (
+            UUID_TO_BIN(#{row.aliasPublicId}),
+            #{row.sourceChannel},
+            #{row.aliasType},
+            #{row.normalizedAlias},
+            <choose>
+                <when test="row.activeAliasKeyHex != null">UNHEX(#{row.activeAliasKeyHex})</when>
+                <otherwise>NULL</otherwise>
+            </choose>,
+            #{row.applicationIdentityId},
+            #{row.aliasVersion},
+            #{row.bindingStatus},
+            #{row.evidenceType},
+            #{row.previousBindingId},
+            #{row.requestId},
+            <choose>
+                <when test="row.commandFingerprintHex != null">UNHEX(#{row.commandFingerprintHex})</when>
+                <otherwise>NULL</otherwise>
+            </choose>,
+            #{row.targetMappingVersionSnapshot},
+            #{row.changedBy},
+            #{row.changeReason},
+            NOW(3)
+        )
+    </insert>
+    <insert id="insertAll">
+        INSERT INTO t_application_identity_alias (
+            alias_public_id,
+            source_channel,
+            alias_type,
+            normalized_alias,
+            active_alias_key,
+            application_identity_id,
+            alias_version,
+            binding_status,
+            evidence_type,
+            created_at
+        )
+        VALUES
+        <foreach collection="rows" item="row" separator=",">
+            (
+                UUID_TO_BIN(#{row.aliasPublicId}),
+                #{row.sourceChannel},
+                #{row.aliasType},
+                #{row.normalizedAlias},
+                UNHEX(#{row.activeAliasKeyHex}),
+                #{row.applicationIdentityId},
+                #{row.aliasVersion},
+                #{row.bindingStatus},
+                #{row.evidenceType},
+                NOW(3)
+            )
+        </foreach>
+    </insert>
+    <update id="supersede">
+        UPDATE t_application_identity_alias
+        SET binding_status = 'SUPERSEDED',
+            active_alias_key = NULL
+        WHERE id = #{id}
+          AND alias_version = #{expectedVersion}
+          AND binding_status = 'ACTIVE'
+    </update>
+    <select id="countActiveByType" resultType="com.feedback.model.po.applicationidentity.ApplicationAliasTypeCountPo">
+        SELECT
+            alias_type,
+            COUNT(*) item_count
+        FROM t_application_identity_alias
+        WHERE binding_status = 'ACTIVE'
+        GROUP BY alias_type
+        ORDER BY alias_type
+    </select>
+</mapper>

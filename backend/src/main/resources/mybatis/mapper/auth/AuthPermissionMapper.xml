@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthPermissionMapper">
+  <!-- 原子权限目录只读查询，不承担角色授权关系的写入。 -->
+  <select id="findAll" resultType="com.feedback.model.po.auth.AuthPermissionPo">
+    SELECT
+      permission_code,
+      permission_name,
+      permission_type,
+      parent_code AS module,
+      resource_path,
+      sort_order
+    FROM t_auth_permission
+    ORDER BY sort_order, permission_code
+  </select>
+
+  <select id="findByCodes" resultType="com.feedback.model.po.auth.AuthPermissionPo">
+    SELECT
+      permission_code,
+      permission_name,
+      permission_type,
+      parent_code AS module,
+      resource_path,
+      sort_order
+    FROM t_auth_permission
+    WHERE permission_code IN
+      <foreach collection="codes" item="code" open="(" separator="," close=")">
+        #{code}
+      </foreach>
+    ORDER BY permission_code
+  </select>
+</mapper>

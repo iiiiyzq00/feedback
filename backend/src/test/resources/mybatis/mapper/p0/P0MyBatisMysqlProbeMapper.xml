@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.integration.P0MyBatisMysqlProbeMapper">
+    <select id="findOrgFact" resultType="com.feedback.integration.P0FeishuOrgFactProbe">
+        SELECT JSON_LENGTH(group_ids) AS group_count,
+               JSON_UNQUOTE(JSON_EXTRACT(group_ids, '$[0]')) AS first_group,
+               JSON_LENGTH(department_ids) AS department_count,
+               JSON_UNQUOTE(JSON_EXTRACT(department_ids, '$[0]')) AS first_department,
+               employment_status,
+               last_error_code
+        FROM t_auth_feishu_user_org_fact
+        WHERE user_id = #{userId}
+    </select>
+    <select id="findSyncRun" resultType="com.feedback.integration.P0FeishuSyncRunProbe">
+        SELECT run_status, total_users, changed_users, disabled_users, failed_users, error_code, finished_at
+        FROM t_auth_feishu_sync_run
+        WHERE id = #{id}
+    </select>
+    <select id="countSyncRunsByRequester" resultType="int">
+        SELECT COUNT(*) FROM t_auth_feishu_sync_run WHERE requested_by = #{requestedBy}
+    </select>
+    <select id="countTelemetry" resultType="int">
+        SELECT COUNT(*)
+        FROM t_system_audit_log
+        WHERE operation = 'SDK_TELEMETRY'
+          AND target_type = 'SDK_TRANSPORT'
+          AND target_id IN
+          <foreach collection="targetIds" item="targetId" open="(" separator="," close=")">
+              #{targetId}
+          </foreach>
+    </select>
+    <delete id="deleteOrgFact">
+        DELETE FROM t_auth_feishu_user_org_fact WHERE user_id = #{userId}
+    </delete>
+    <update id="ageSyncRun">
+        UPDATE t_auth_feishu_sync_run SET started_at = #{startedAt} WHERE id = #{id}
+    </update>
+    <delete id="deleteSyncRun">
+        DELETE FROM t_auth_feishu_sync_run WHERE id = #{id}
+    </delete>
+    <delete id="deleteUser">
+        DELETE FROM t_auth_user WHERE id = #{id}
+    </delete>
+</mapper>

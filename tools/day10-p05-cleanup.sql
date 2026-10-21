@@ -1,0 +1,14 @@
+CREATE TEMPORARY TABLE d10p05_ids(id BIGINT PRIMARY KEY);
+INSERT INTO d10p05_ids SELECT id FROM t_feedback_source WHERE source_record_id LIKE 'D10P05-20260730A%';
+DELETE t FROM t_ai_task t JOIN d10p05_ids p ON p.id=t.source_id;
+DELETE l FROM t_cluster_link l JOIN d10p05_ids p ON p.id=l.feedback_source_id;
+DELETE a FROM t_feedback_ai a JOIN d10p05_ids p ON p.id=a.source_id;
+DELETE c FROM t_channel_sdk c JOIN d10p05_ids p ON p.id=c.source_id;
+DELETE c FROM t_channel_jira c JOIN d10p05_ids p ON p.id=c.source_id;
+DELETE c FROM t_channel_quality c JOIN d10p05_ids p ON p.id=c.source_id;
+DELETE c FROM t_channel_redblack c JOIN d10p05_ids p ON p.id=c.source_id;
+DELETE i FROM t_feedback_identity i JOIN d10p05_ids p ON p.id=i.source_id;
+DELETE c FROM t_feedback_content c JOIN d10p05_ids p ON p.id=c.source_id;
+DELETE s FROM t_feedback_source s JOIN d10p05_ids p ON p.id=s.id;
+DROP TEMPORARY TABLE d10p05_ids;
+SELECT COUNT(*) remaining_sources FROM t_feedback_source WHERE source_record_id LIKE 'D10P05-20260730A%';

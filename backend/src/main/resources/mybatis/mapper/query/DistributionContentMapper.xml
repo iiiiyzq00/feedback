@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.DistributionContentMapper"><update id="updateLegacy">UPDATE t_feedback_content
+  SET processing_status=#{status},updated_at=NOW(3) WHERE source_id=#{sourceId}</update></mapper>

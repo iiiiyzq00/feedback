@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.diagnostics.FeedbackDiagnosticStationMapper">
+  <!-- 使用宽于一行的哨兵上限检出异常重复；Repository 在超过一行时失败关闭。 -->
+  <select id="findBySourceId" resultType="com.feedback.model.po.feedback.diagnostics.FeedbackDiagnosticStationPo">
+    SELECT source_id,source_user_id,authenticated_user_id
+    FROM t_channel_station_feedback
+    WHERE source_id=#{sourceId}
+    ORDER BY source_id
+    LIMIT #{limit}
+  </select>
+  <select id="findBySourceIds" resultType="com.feedback.model.po.feedback.diagnostics.FeedbackDiagnosticStationPo">
+    SELECT source_id,source_user_id,authenticated_user_id
+    FROM (
+      SELECT s.source_id,s.source_user_id,s.authenticated_user_id,
+             ROW_NUMBER() OVER(PARTITION BY source_id ORDER BY source_id) AS source_row_number
+      FROM t_channel_station_feedback s
+      WHERE source_id IN
+      <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+    ) bounded
+    WHERE source_row_number&lt;=#{perSourceLimit}
+    ORDER BY source_id
+  </select>
+</mapper>

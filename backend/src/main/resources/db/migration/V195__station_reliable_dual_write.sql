@@ -1,0 +1,37 @@
+CREATE TABLE t_station_dual_write_task (
+  id BIGINT NOT NULL AUTO_INCREMENT,
+  receipt_id BINARY(16) NOT NULL,
+  idempotency_key VARCHAR(100) NOT NULL,
+  request_fingerprint BINARY(32) NOT NULL,
+  api_version VARCHAR(10) NOT NULL,
+  payload_ciphertext MEDIUMBLOB NOT NULL,
+  payload_nonce VARBINARY(12) NOT NULL,
+  payload_tag VARBINARY(16) NOT NULL,
+  key_id VARCHAR(50) NOT NULL,
+  old_fbp_status VARCHAR(30) NOT NULL DEFAULT 'PENDING',
+  new_platform_status VARCHAR(30) NOT NULL DEFAULT 'BLOCKED_BY_OLD',
+  overall_status VARCHAR(30) NOT NULL DEFAULT 'ACCEPTED',
+  retry_count INT NOT NULL DEFAULT 0,
+  max_retry_count INT NOT NULL DEFAULT 8,
+  next_retry_at DATETIME(3) DEFAULT CURRENT_TIMESTAMP(3),
+  lease_owner VARCHAR(100) DEFAULT NULL,
+  lease_expires_at DATETIME(3) DEFAULT NULL,
+  feedback_source_id BIGINT DEFAULT NULL,
+  last_error_code VARCHAR(50) DEFAULT NULL,
+  last_error_summary VARCHAR(500) DEFAULT NULL,
+  completed_at DATETIME(3) DEFAULT NULL,
+  created_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+  updated_at DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3) ON UPDATE CURRENT_TIMESTAMP(3),
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_station_dual_receipt (receipt_id),
+  UNIQUE KEY uk_station_dual_idempotency (idempotency_key),
+  KEY idx_station_dual_claim (overall_status,next_retry_at,lease_expires_at,id),
+  CONSTRAINT fk_station_dual_source FOREIGN KEY (feedback_source_id) REFERENCES t_feedback_source(id),
+  CONSTRAINT chk_station_dual_api CHECK (api_version IN ('V1','V2')),
+  CONSTRAINT chk_station_dual_old CHECK (old_fbp_status IN ('PENDING','SUCCEEDED','RETRY_PENDING','FAILED_FINAL')),
+  CONSTRAINT chk_station_dual_new CHECK (new_platform_status IN ('BLOCKED_BY_OLD','PENDING','SUCCEEDED','RETRY_PENDING','FAILED_FINAL')),
+  CONSTRAINT chk_station_dual_overall CHECK (overall_status IN ('ACCEPTED','PROCESSING','PARTIAL','RETRY_PENDING','COMPLETED','FAILED_FINAL'))
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_0900_as_cs
+  COMMENT='旧入口可靠异步双写任务；后台严格先写旧FBP再正式入库新平台';
+
+-- Governed physical business table count is now 53.

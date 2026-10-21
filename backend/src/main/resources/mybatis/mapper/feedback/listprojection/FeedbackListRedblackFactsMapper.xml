@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListRedblackFactsMapper">
+    <select id="findBySourceIds" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListRedblackFactsPo">
+        SELECT source_id,original_id_raw,headline,author,source_platform,pub_type_name,list_type,section_raw,
+               folder_name,keyword,emotion_type_raw,evaluation_object,evaluation_dimension,impact_level_raw,data_period,
+               source_department_masked,source_role_masked,push_time,pub_time,create_time,update_time,
+               is_deleted_src AS source_deleted
+        FROM t_channel_redblack WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+    </select>
+</mapper>
+

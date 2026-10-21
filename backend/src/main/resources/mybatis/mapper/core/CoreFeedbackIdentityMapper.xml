@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.core.CoreFeedbackIdentityMapper">
+  <sql id="columns">id,source_id,identity_type,identity_scope,fingerprint,fingerprint_key_id,contact_ciphertext,
+    contact_nonce,contact_tag,contact_key_id,contact_algorithm,contact_authorization_basis,consented_at,expires_at,created_at</sql>
+  <select id="findById" resultType="com.feedback.model.feedback.FeedbackIdentity">SELECT <include refid="columns"/>
+    FROM t_feedback_identity WHERE id=#{id}</select>
+  <select id="findBySourceId" resultType="com.feedback.model.feedback.FeedbackIdentity">SELECT <include refid="columns"/>
+    FROM t_feedback_identity WHERE source_id=#{sourceId} ORDER BY id</select>
+  <select id="findExact" resultType="com.feedback.model.feedback.FeedbackIdentity">SELECT <include refid="columns"/>
+    FROM t_feedback_identity WHERE source_id=#{sourceId} AND identity_type=#{identityType} AND identity_scope=#{identityScope}
+    ORDER BY id LIMIT 1</select>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_feedback_identity(source_id,identity_type,
+    identity_scope,fingerprint,fingerprint_key_id,contact_ciphertext,contact_nonce,contact_tag,contact_key_id,
+    contact_algorithm,contact_authorization_basis,consented_at,expires_at,created_at) VALUES(#{row.sourceId},
+    #{row.identityType},#{row.identityScope},#{row.fingerprint},#{row.fingerprintKeyId},#{row.contactCiphertext},
+    #{row.contactNonce},#{row.contactTag},#{row.contactKeyId},#{row.contactAlgorithm},#{row.contactAuthorizationBasis},
+    #{row.consentedAt},#{row.expiresAt},#{row.createdAt})</insert>
+  <update id="update">UPDATE t_feedback_identity SET source_id=#{row.sourceId},identity_type=#{row.identityType},
+    identity_scope=#{row.identityScope},fingerprint=#{row.fingerprint},fingerprint_key_id=#{row.fingerprintKeyId},
+    contact_ciphertext=#{row.contactCiphertext},contact_nonce=#{row.contactNonce},contact_tag=#{row.contactTag},
+    contact_key_id=#{row.contactKeyId},contact_algorithm=#{row.contactAlgorithm},
+    contact_authorization_basis=#{row.contactAuthorizationBasis},consented_at=#{row.consentedAt},expires_at=#{row.expiresAt}
+    WHERE id=#{row.id}</update>
+</mapper>

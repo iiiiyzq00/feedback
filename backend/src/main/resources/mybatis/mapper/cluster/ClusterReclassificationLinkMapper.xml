@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterReclassificationLinkMapper">
+  <sql id="columns">id,cluster_id,feedback_source_id,relation_role,link_type,match_similarity,candidate_rank,
+    match_evidence,decision_version,decision_config_version,feature_snapshot,problem_fingerprint,review_status,
+    review_priority,review_due_at,review_version,reviewed_by,reviewed_at,review_reason,review_request_id,
+    decision_reason,reclassification_run_id,superseded_by_reclassification_run_id,is_active,created_at</sql>
+  <select id="findActiveSnapshotClusterIds" resultType="long">SELECT DISTINCT cluster_id FROM t_cluster_link
+    WHERE is_active=1 AND relation_role IN ('MAIN','CANDIDATE') ORDER BY cluster_id</select>
+  <update id="supersedeCandidates">UPDATE t_cluster_link SET is_active=0,review_status='SKIPPED',reviewed_at=NOW(3),
+    review_reason=LEFT(CONCAT('全量重分类 ',#{runId}),500),review_version=COALESCE(review_version,0)+1,
+    superseded_by_reclassification_run_id=#{runId} WHERE relation_role='CANDIDATE' AND is_active=1</update>
+  <update id="supersedeMains">UPDATE t_cluster_link SET is_active=0,superseded_by_reclassification_run_id=#{runId}
+    WHERE relation_role='MAIN' AND is_active=1</update>
+  <select id="findActiveMainBySourceIds" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+    SELECT <include refid="columns"/> FROM t_cluster_link WHERE feedback_source_id IN
+    <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    AND relation_role='MAIN' AND is_active=1 ORDER BY feedback_source_id,id
+  </select>
+  <select id="findOwnedClusterIds" resultType="long">SELECT DISTINCT cluster_id FROM t_cluster_link
+    WHERE reclassification_run_id=#{runId} ORDER BY cluster_id</select>
+  <select id="countUnownedActiveMains" resultType="long">SELECT COUNT(*) FROM t_cluster_link WHERE cluster_id IN
+    <foreach collection="clusterIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    AND relation_role='MAIN' AND is_active=1 AND (reclassification_run_id IS NULL OR reclassification_run_id&lt;&gt;#{runId})</select>
+  <update id="deactivateOwnedMains">UPDATE t_cluster_link SET is_active=0 WHERE cluster_id IN
+    <foreach collection="clusterIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    AND relation_role='MAIN' AND is_active=1 AND reclassification_run_id=#{runId}</update>
+  <select id="lockOwnedActiveMains" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+    SELECT <include refid="columns"/> FROM t_cluster_link WHERE feedback_source_id IN
+    <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    AND relation_role='MAIN' AND is_active=1 AND reclassification_run_id=#{runId}
+    ORDER BY feedback_source_id,id FOR UPDATE
+  </select>
+  <update id="deactivateIds">UPDATE t_cluster_link SET is_active=0 WHERE id IN
+    <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach> AND is_active=1</update>
+  <select id="findActiveMainClusterIds" resultType="long">SELECT DISTINCT cluster_id FROM t_cluster_link WHERE cluster_id IN
+    <foreach collection="clusterIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    AND relation_role='MAIN' AND is_active=1 ORDER BY cluster_id</select>
+  <select id="countSupersededMains" resultType="long">SELECT COUNT(*) FROM t_cluster_link
+    WHERE superseded_by_reclassification_run_id=#{runId} AND relation_role='MAIN'</select>
+  <update id="deactivateAllActiveMains">UPDATE t_cluster_link SET is_active=0 WHERE relation_role='MAIN' AND is_active=1</update>
+  <update id="restoreSupersededMains">UPDATE t_cluster_link SET is_active=1
+    WHERE superseded_by_reclassification_run_id=#{runId} AND relation_role='MAIN'</update>
+  <update id="restoreSupersededCandidates">UPDATE t_cluster_link SET is_active=1,review_status='PENDING',reviewed_by=NULL,
+    reviewed_at=NULL,review_reason=NULL,review_version=COALESCE(review_version,0)+1
+    WHERE superseded_by_reclassification_run_id=#{runId} AND relation_role='CANDIDATE'</update>
+  <select id="findNewClusterIds" resultType="long">SELECT DISTINCT cluster_id FROM t_cluster_link
+    WHERE reclassification_run_id=#{runId} AND link_type='NEW_CLUSTER' ORDER BY cluster_id</select>
+  <update id="clearSuperseded">UPDATE t_cluster_link SET superseded_by_reclassification_run_id=NULL
+    WHERE superseded_by_reclassification_run_id=#{runId}</update>
+  <select id="findActiveMainAfter" resultType="com.feedback.model.po.cluster.ClusterLinkPo">
+    SELECT <include refid="columns"/> FROM t_cluster_link WHERE relation_role='MAIN' AND is_active=1 AND id&gt;#{afterId}
+    ORDER BY id LIMIT #{limit}
+  </select>
+  <select id="counts" resultType="com.feedback.model.po.cluster.ClusterReclassificationCountsPo">
+    SELECT COUNT(DISTINCT feedback_source_id) processed,
+      COUNT(DISTINCT CASE WHEN link_type&lt;&gt;'NEW_CLUSTER' THEN feedback_source_id END) linked_existing,
+      COUNT(DISTINCT CASE WHEN link_type='NEW_CLUSTER' THEN cluster_id END) new_clusters
+    FROM t_cluster_link WHERE reclassification_run_id=#{runId} AND relation_role='MAIN' AND is_active=1
+  </select>
+</mapper>
+

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.detail.FeedbackDetailImportBatchMapper">
+    <select id="findById" resultType="com.feedback.model.po.feedback.detail.FeedbackDetailImportBatchPo">
+        SELECT id, batch_id, batch_status FROM t_import_batch WHERE id = #{id}
+    </select>
+</mapper>
+

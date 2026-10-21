@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterCommandLedgerTableMapper">
+    <insert id="claim" useGeneratedKeys="true" keyProperty="row.id">
+        INSERT INTO t_alert_occurrence(occurrence_type, metric_code, dimension_key, fact_status,
+          source_entity_id, fact_key, evaluation_snapshot, evaluation_time, created_at)
+        VALUES('CLUSTER_MUTATION_COMMAND', #{row.operation}, #{row.commandFingerprint}, 'PENDING',
+          #{row.targetId}, #{row.factKey},
+          JSON_OBJECT('requestId',#{row.requestId},'commandFingerprint',#{row.commandFingerprint}), NOW(3), NOW(3))
+        ON DUPLICATE KEY UPDATE id = LAST_INSERT_ID(id)
+    </insert>
+    <select id="findByFactKey" resultType="com.feedback.model.po.cluster.ClusterCommandLedgerPo">
+        SELECT id, fact_key, metric_code operation, dimension_key command_fingerprint,
+          source_entity_id target_id,
+          JSON_UNQUOTE(JSON_EXTRACT(evaluation_snapshot,'$.requestId')) request_id,
+          fact_status, CAST(evaluation_snapshot AS CHAR) evaluation_snapshot
+        FROM t_alert_occurrence
+        WHERE occurrence_type = 'CLUSTER_MUTATION_COMMAND' AND fact_key = #{factKey}
+        LIMIT 1
+    </select>
+    <update id="complete">
+        UPDATE t_alert_occurrence SET fact_status = 'COMPLETED', evaluation_snapshot = CAST(#{snapshot} AS JSON),
+          resolved_at = NOW(3), evaluation_time = NOW(3)
+        WHERE id = #{id} AND occurrence_type = 'CLUSTER_MUTATION_COMMAND' AND fact_status = 'PENDING'
+    </update>
+    <insert id="insertDecision">
+        INSERT INTO t_alert_occurrence(occurrence_type, metric_code, metric_value, dimension_key,
+          sample_count, fact_status, source_entity_id, related_entity_id, fact_key, resolution_note,
+          resolved_by, resolved_at, evaluation_snapshot, evaluation_time, created_at)
+        VALUES('CLUSTER_REVIEW_DECISION', #{row.decisionType}, #{row.overturned}, #{row.requestId},
+          #{row.candidateCount}, #{row.decisionType}, #{row.sourceId}, #{row.selectedClusterId},
+          #{row.factKey}, #{row.reason}, #{row.reviewerId}, NOW(3), CAST(#{row.snapshot} AS JSON), NOW(3), NOW(3))
+    </insert>
+</mapper>
+

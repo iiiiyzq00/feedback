@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "1.0",
+  "assets": [
+    {"skillCode":"feedback_classify","version":"1.0.0","file":"feedback_classify/1.0.0.txt","sha256":"bd27aed1fd1e1fd5466e8bb330b95dc8b397d71d422d413d7355711d9dfcef0b","modelConfig":{"temperature":0,"response_format":"json_object"}},
+    {"skillCode":"feedback_classify","version":"1.1.0","file":"feedback_classify/1.1.0.txt","sha256":"56fd9f47914149ed3f58f6dd9ccc5c482cce0f0507c496f3acb0584ce0049c5b","modelConfig":{"temperature":0,"response_format":"json_object"}},
+    {"skillCode":"feedback_classify","version":"1.2.0","file":"feedback_classify/1.2.0.txt","sha256":"4a65230442d214cb380770d638a1d148163b0b3e6d26888e45565a5643f91ed1","modelConfig":{"temperature":0,"response_format":"json_object"}},
+    {"skillCode":"assistant_answer_generate","version":"1.0.0","file":"assistant_answer_generate/1.0.0.txt","sha256":"35044032212a23af6f6988de1d25e82297aea5aafb8e77fa9b0a2fff81c54ecf","modelConfig":{"temperature":0}},
+    {"skillCode":"root_cause_deep_agent2","version":"1.0.0","file":"root_cause_deep_agent2/1.0.0.txt","sha256":"7c482955d2410791078afc78ae0e581cf2784974b66a69bec143028532f76a7f","modelConfig":{"temperature":0}},
+    {"skillCode":"root_cause_deep_agent3","version":"1.0.0","file":"root_cause_deep_agent3/1.0.0.txt","sha256":"094dd5e799349f35fe270daa1ac6aa749af6c3ab0a57ba57d87d92ba799680f0","modelConfig":{"temperature":0}},
+    {"skillCode":"impact_assess","version":"1.0.0","file":"impact_assess/1.0.0.txt","sha256":"7210624c55997f5d9065d1cf95f2fafa25e72bfba71cf3486701cccb85869a7e","modelConfig":{"temperature":0}},
+    {"skillCode":"report_generate","version":"1.0.0","file":"report_generate/1.0.0.txt","sha256":"082af7ce0292cef34fb6cca83586c30f55c923cc11587b97c0577302f24ee323","modelConfig":{"temperature":0}},
+    {"skillCode":"alert_route","version":"1.0.0","file":"alert_route/1.0.0.txt","sha256":"aa90cdd1400e10ed2d7a10824547c80b20c3aff65df868b42cc9f1b4722e5959","modelConfig":{"temperature":0,"response_format":"json_object"}},
+    {"skillCode":"root_cause_quick","version":"1.0.0","file":"root_cause_quick/1.0.0.txt","sha256":"b3d36e3193753049241bd3b1c182c2d6d89ef6f6ea283ce8140f4db9ccab6c09","modelConfig":{"temperature":0}},
+    {"skillCode":"knowledge_search","version":"1.0.0","file":"knowledge_search/1.0.0.txt","sha256":"de8357f18d0a5299cdfab2a305b1fc999bb4cd71d3974c77258b0cbaff0bc62f","modelConfig":{"temperature":0}},
+    {"skillCode":"assistant_intent_parse","version":"1.0.0","file":"assistant_intent_parse/1.0.0.txt","sha256":"2522aca93165c6404964c09c476ec175a30b41bbfbeb6b57b74716ffa86237b3","modelConfig":{"temperature":0,"response_format":"json_object"}}
+  ]
+}

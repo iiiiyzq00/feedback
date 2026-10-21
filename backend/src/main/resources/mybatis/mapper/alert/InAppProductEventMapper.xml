@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.InAppProductEventMapper">
+    <select id="page" resultType="com.feedback.model.po.alert.InAppProductEventPo">
+        SELECT id, request_id, actor_user_id AS actor_id, event_type,
+               event_reason AS reason, new_handler_user_id, created_at
+        FROM t_product_feedback_event
+        WHERE ((new_handler_user_id = #{user} AND actor_user_id &lt;&gt; #{user})
+               OR event_type IN ('SUBMITTED_FOR_ACCEPTANCE', 'ACCEPTANCE_REJECTED'))
+        <if test="before != null">AND id &lt; #{before}</if>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+    <select id="visible" resultType="com.feedback.model.po.alert.InAppProductEventPo">
+        SELECT id, request_id, actor_user_id AS actor_id, event_type,
+               event_reason AS reason, new_handler_user_id, created_at
+        FROM t_product_feedback_event WHERE id = #{id}
+    </select>
+</mapper>

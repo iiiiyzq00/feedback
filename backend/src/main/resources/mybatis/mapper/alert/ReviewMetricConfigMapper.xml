@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.ReviewMetricConfigMapper">
+ <select id="findSlas" resultType="com.feedback.model.po.alert.ReviewSlaPo">SELECT scope_key,config_subtype subtype,record_version minutes FROM t_system_config WHERE config_type='MASKING_REVIEW_SLA' AND is_active=1</select>
+ <select id="requiredRules" resultType="com.feedback.model.po.alert.RuleContractPo">SELECT JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.ruleCode')) rule_code,JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.contractCode')) contract_code FROM t_system_config WHERE config_type='ALERT_RULE_CONTRACT' AND JSON_EXTRACT(config_value,'$.required')=TRUE</select>
+ <select id="dataContracts" resultType="com.feedback.model.po.alert.DataContractPo">SELECT JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.contractCode')) contract_code,JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.sourceSystem')) source_system,JSON_UNQUOTE(JSON_EXTRACT(config_value,'$.schemaVersion')) schema_version FROM t_system_config WHERE config_type='ALERT_DATA_CONTRACT'</select>
+</mapper>

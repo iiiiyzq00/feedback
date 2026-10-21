@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListIdentityFingerprintFactsMapper">
+    <select id="findBySourceIds" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListIdentityFingerprintFactsPo">
+        SELECT source_id,identity_scope,identity_type,fingerprint_key_id,fingerprint
+        FROM t_feedback_identity
+        WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+          AND ((identity_scope='PERSON' AND identity_type&lt;&gt;'DEVICE_SN')
+            OR (identity_scope='DEVICE' AND identity_type='DEVICE_SN'))
+        ORDER BY source_id,identity_scope,identity_type,fingerprint_key_id,fingerprint
+    </select>
+</mapper>
+

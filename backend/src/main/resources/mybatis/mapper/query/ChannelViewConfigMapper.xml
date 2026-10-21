@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.query.ChannelViewConfigMapper">
+  <sql id="columns">id,config_version,config_status status,CAST(field_config AS CHAR) fields_json,change_reason reason,
+    created_at,published_at</sql>
+  <select id="findPublished" resultType="com.feedback.model.po.query.ChannelViewConfigPo">SELECT <include refid="columns"/>
+    FROM t_channel_view_config WHERE source_channel=#{channel} AND config_status='PUBLISHED'
+    ORDER BY config_version DESC LIMIT 1</select>
+  <select id="nextVersion" resultType="long">SELECT COALESCE(MAX(config_version),0)+1 FROM t_channel_view_config
+    WHERE source_channel=#{channel}</select>
+  <insert id="insertDraft">INSERT INTO t_channel_view_config(source_channel,config_version,field_config,change_reason,created_by)
+    VALUES(#{channel},#{version},CAST(#{fieldsJson} AS JSON),#{reason},#{actor})</insert>
+  <select id="countDraft" resultType="int">SELECT COUNT(*) FROM t_channel_view_config
+    WHERE source_channel=#{channel} AND config_version=#{version} AND config_status='DRAFT'</select>
+  <update id="supersedePublished">UPDATE t_channel_view_config SET config_status='SUPERSEDED'
+    WHERE source_channel=#{channel} AND config_status='PUBLISHED'</update>
+  <update id="publish">UPDATE t_channel_view_config SET config_status='PUBLISHED',published_by=#{actor},published_at=NOW(3)
+    WHERE source_channel=#{channel} AND config_version=#{version}</update>
+  <select id="findVersion" resultType="com.feedback.model.po.query.ChannelViewConfigPo">SELECT <include refid="columns"/>
+    FROM t_channel_view_config WHERE source_channel=#{channel} AND config_version=#{version} LIMIT 1</select>
+  <insert id="insertRollback">INSERT INTO t_channel_view_config(source_channel,config_version,config_status,field_config,
+    change_reason,created_by,published_by,published_at) VALUES(#{channel},#{version},'PUBLISHED',CAST(#{fieldsJson} AS JSON),
+    #{reason},#{actor},#{actor},NOW(3))</insert>
+  <select id="history" resultType="com.feedback.model.po.query.ChannelViewConfigPo">SELECT <include refid="columns"/>
+    FROM t_channel_view_config WHERE source_channel=#{channel} ORDER BY config_version DESC</select>
+</mapper>

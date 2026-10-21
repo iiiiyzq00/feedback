@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.NotificationContactMapper"><select id="active" resultType="com.feedback.model.po.alert.NotificationContactPo">SELECT <choose><when test="kind == 'EMAIL'">email_ciphertext ciphertext,email_tag tag,email_nonce nonce</when><otherwise>phone_ciphertext ciphertext,phone_tag tag,phone_nonce nonce</otherwise></choose> FROM t_auth_user WHERE id=#{id} AND is_active=1</select></mapper>

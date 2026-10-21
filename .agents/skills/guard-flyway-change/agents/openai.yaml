@@ -1,0 +1,4 @@
+interface:
+  display_name: "Flyway 安全变更"
+  short_description: "设计和验证安全的前向数据库迁移并保护已执行历史文件"
+  default_prompt: "Use $guard-flyway-change to review and implement this database migration safely."

@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthRolePermissionMapper">
+  <!-- 一次按角色集合展开所有原子权限，供 WebPrincipal 在登录/会话恢复时完成授权装配。 -->
+  <select id="findByRoleCodes" resultType="com.feedback.model.po.auth.AuthRolePermissionPo">
+    SELECT
+      role_code,
+      permission_code
+    FROM t_auth_role_permission
+    WHERE role_code IN
+      <foreach collection="roleCodes" item="role" open="(" separator="," close=")">
+        #{role}
+      </foreach>
+    ORDER BY role_code, permission_code
+  </select>
+
+  <select id="findAll" resultType="com.feedback.model.po.auth.AuthRolePermissionPo">
+    SELECT
+      role_code,
+      permission_code
+    FROM t_auth_role_permission
+    ORDER BY role_code, permission_code
+  </select>
+
+  <delete id="deleteByRoleCode">
+    DELETE FROM t_auth_role_permission
+    WHERE role_code = #{roleCode}
+  </delete>
+
+  <insert id="insert">
+    INSERT INTO t_auth_role_permission (
+      role_code,
+      permission_code,
+      granted_by
+    ) VALUES (
+      #{roleCode},
+      #{permissionCode},
+      #{grantedBy}
+    )
+  </insert>
+</mapper>

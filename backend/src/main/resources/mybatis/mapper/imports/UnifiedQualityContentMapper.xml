@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.imports.UnifiedQualityContentMapper">
+    <sql id="columns">
+        source_id,
+        description,
+        CASE WHEN NULLIF(TRIM(mapping_error), '') IS NULL THEN FALSE ELSE TRUE END AS mapping_error,
+        function_module,
+        masking_status,
+        data_quality_score
+    </sql>
+
+    <select id="findActiveBySourceIds" resultType="com.feedback.model.po.imports.UnifiedQualityContentPo">
+        SELECT <include refid="columns"/>
+        FROM t_feedback_content
+        WHERE is_deleted = 0
+          AND source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+
+    <select id="findUnsafeBySourceIds" resultType="com.feedback.model.po.imports.UnifiedQualityContentPo">
+        SELECT <include refid="columns"/>
+        FROM t_feedback_content
+        WHERE is_deleted = 0
+          AND masking_status IN ('PENDING', 'REVIEW_NEEDED', 'FAIL')
+          AND source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+</mapper>

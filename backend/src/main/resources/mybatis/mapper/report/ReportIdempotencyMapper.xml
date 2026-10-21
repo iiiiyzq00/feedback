@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ReportIdempotencyMapper">
+    <select id="completedBase" resultType="int">
+        SELECT COUNT(*) FROM t_ai_task
+        WHERE record_type = 'REPORT_IDEMPOTENCY'
+          AND JSON_UNQUOTE(JSON_EXTRACT(input_snapshot, '$.baseKey')) = #{base}
+          AND result_entity_id IS NOT NULL
+    </select>
+    <select id="compatible" resultType="com.feedback.model.po.report.ReportIdempotencyResultPo">
+        SELECT result_entity_id AS report_id FROM t_ai_task
+        WHERE record_type = 'REPORT_IDEMPOTENCY'
+          AND JSON_UNQUOTE(JSON_EXTRACT(input_snapshot, '$.idempotencyKey')) = #{key}
+        ORDER BY id DESC LIMIT 1
+    </select>
+    <insert id="insert">
+        INSERT INTO t_ai_task(
+            record_type, task_domain, task_key, task_status, input_snapshot,
+            snapshot_retention_until, result_entity_type
+        ) VALUES(
+            'REPORT_IDEMPOTENCY', 'REPORT', CONCAT('REPORT_KEY:', SHA2(#{row.key}, 256)), 'PENDING',
+            JSON_OBJECT('idempotencyKey', #{row.key}, 'generationSource', #{row.source},
+                        'baseKey', #{row.baseKey}, 'regenerationNo', #{row.regeneration}),
+            DATE_ADD(NOW(3), INTERVAL 365 DAY), 'AI_REPORT'
+        )
+    </insert>
+    <select id="byHash" resultType="com.feedback.model.po.report.ReportIdempotencyResultPo">
+        SELECT result_entity_id AS report_id FROM t_ai_task
+        WHERE record_type = 'REPORT_IDEMPOTENCY'
+          AND task_key = CONCAT('REPORT_KEY:', SHA2(#{key}, 256))
+        LIMIT 1
+    </select>
+    <select id="regenerationNumbers" resultType="int">
+        SELECT CAST(JSON_UNQUOTE(JSON_EXTRACT(input_snapshot, '$.regenerationNo')) AS UNSIGNED)
+        FROM t_ai_task
+        WHERE record_type = 'REPORT_IDEMPOTENCY'
+          AND JSON_UNQUOTE(JSON_EXTRACT(input_snapshot, '$.baseKey')) = #{base}
+        FOR UPDATE
+    </select>
+    <update id="complete">
+        UPDATE t_ai_task
+        SET task_status = 'COMPLETED', result_entity_id = #{report},
+            output_snapshot = JSON_OBJECT('reportId', #{report}), completed_at = NOW(3)
+        WHERE record_type = 'REPORT_IDEMPOTENCY'
+          AND task_key = CONCAT('REPORT_KEY:', SHA2(#{key}, 256))
+    </update>
+    <select id="previous" resultType="com.feedback.model.po.report.ReportIdempotencyResultPo">
+        SELECT result_entity_id AS report_id FROM t_ai_task
+        WHERE record_type = 'REPORT_IDEMPOTENCY'
+          AND JSON_UNQUOTE(JSON_EXTRACT(input_snapshot, '$.baseKey')) = #{base}
+          AND CAST(JSON_UNQUOTE(JSON_EXTRACT(input_snapshot, '$.regenerationNo')) AS UNSIGNED) = #{number}
+        LIMIT 1
+    </select>
+</mapper>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ClusterReportCauseLinkMapper">
+    <select id="byCluster" resultType="com.feedback.model.po.report.ClusterReportCauseLinkPo">
+        SELECT cluster_id, rca_id, incident_id FROM t_cluster_root_cause
+        WHERE cluster_id = #{id} AND link_status = 'ACTIVE'
+        ORDER BY id
+    </select>
+</mapper>

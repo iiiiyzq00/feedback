@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.problem.analysis.ProblemAnalysisMemberMapper">
+  <!-- 全部查询只访问成员投影表；公共过滤固定 generation、共享数据范围和可选来源语义时间。 -->
+  <sql id="filters">
+    generation_id=#{generationId}
+    AND source_channel IN
+    <foreach collection="criteria.allowedChannels" item="value" open="(" separator="," close=")">#{value}</foreach>
+    <if test="criteria.scopeModules != null">
+      AND UPPER(COALESCE(NULLIF(function_module,''),'UNKNOWN')) IN
+      <foreach collection="criteria.scopeModules" item="value" open="(" separator="," close=")">#{value}</foreach>
+    </if>
+    <if test="criteria.scopeRegions != null">
+      AND (UPPER(province_code) IN
+      <foreach collection="criteria.scopeRegions" item="value" open="(" separator="," close=")">#{value}</foreach>
+      OR UPPER(city_code) IN
+      <foreach collection="criteria.scopeRegions" item="value" open="(" separator="," close=")">#{value}</foreach>)
+    </if>
+    <if test="criteria.startTime != null">AND reported_at&gt;=#{criteria.startTime}</if>
+    <if test="criteria.endTime != null">AND reported_at&lt;=#{criteria.endTime}</if>
+  </sql>
+
+  <sql id="aggregates">
+    cluster_id,COUNT(*) record_count,COUNT(DISTINCT logical_channel) logical_channel_count,
+    MIN(reported_at) first_occurred_at,MAX(reported_at) last_occurred_at,
+    COALESCE(SUM(attachment_count),0) attachment_count,COALESCE(SUM(screenshot_count),0) screenshot_count,
+    COALESCE(SUM(log_count),0) log_count,COALESCE(SUM(video_count),0) video_count,
+    COALESCE(SUM(logical_channel='LEARNING_MACHINE'),0) station_count,
+    COALESCE(SUM(logical_channel='JIRA'),0) jira_count,
+    COALESCE(SUM(logical_channel='QUALITY'),0) quality_count,
+    COALESCE(SUM(logical_channel='REDBLACK'),0) redblack_count
+  </sql>
+
+  <sql id="memberColumns">
+    generation_id,source_id,cluster_id,source_channel,logical_channel,cluster_status,reported_at,function_module,
+    province_code,city_code,application_name,region_value,attachment_count,screenshot_count,log_count,
+    video_count,decision_type,match_similarity,decision_reason,ai_model,ai_confidence,ai_action,ai_explanation
+  </sql>
+
+  <select id="findMemberBySourceId" resultType="com.feedback.model.po.feedback.listprojection.FeedbackClusterMemberProjectionPo">
+    SELECT <include refid="memberColumns"/>
+    FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND source_id=#{sourceId}
+      AND cluster_status NOT IN ('MERGED','SPLIT_ARCHIVED')
+    LIMIT 1
+  </select>
+
+  <select id="countRelatedFeedback" resultType="long">
+    SELECT COUNT(*) FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND cluster_id=#{clusterId} AND source_id&lt;&gt;#{excludedSourceId}
+      AND cluster_status NOT IN ('MERGED','SPLIT_ARCHIVED')
+  </select>
+
+  <select id="findRelatedFeedbackPage" resultType="com.feedback.model.po.feedback.listprojection.FeedbackClusterMemberProjectionPo">
+    SELECT <include refid="memberColumns"/>
+    FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND cluster_id=#{clusterId} AND source_id&lt;&gt;#{excludedSourceId}
+      AND cluster_status NOT IN ('MERGED','SPLIT_ARCHIVED')
+    ORDER BY reported_at DESC,source_id DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="totals" resultType="com.feedback.model.po.problem.analysis.ProblemTotalsPo">
+    <!-- 同表派生聚合同时计算两个独立分页区总数，不是跨表子查询。 -->
+    SELECT COUNT(*) all_total,COALESCE(SUM(logical_channel_count&gt;1),0) cross_channel_total
+    FROM (
+      SELECT cluster_id,COUNT(DISTINCT logical_channel) logical_channel_count
+      FROM t_phase_one_feedback_cluster_member_projection
+      WHERE <include refid="filters"/> AND cluster_status NOT IN ('MERGED','SPLIT_ARCHIVED')
+      GROUP BY cluster_id
+    ) governed_clusters
+  </select>
+
+  <select id="findClusterPage" resultType="com.feedback.model.po.problem.analysis.ProblemClusterPo">
+    SELECT <include refid="aggregates"/>
+    FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND cluster_status NOT IN ('MERGED','SPLIT_ARCHIVED')
+    GROUP BY cluster_id
+    <if test="crossChannelOnly">HAVING COUNT(DISTINCT logical_channel)&gt;1</if>
+    ORDER BY record_count DESC,last_occurred_at DESC,cluster_id DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="findClusterSummary" resultType="com.feedback.model.po.problem.analysis.ProblemClusterPo">
+    SELECT <include refid="aggregates"/>
+    FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND cluster_id=#{clusterId}
+    GROUP BY cluster_id
+  </select>
+
+  <select id="countClusterFeedback" resultType="long">
+    SELECT COUNT(*) FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND cluster_id=#{clusterId}
+  </select>
+
+  <select id="findClusterFeedbackPage" resultType="com.feedback.model.po.feedback.listprojection.FeedbackClusterMemberProjectionPo">
+    SELECT <include refid="memberColumns"/>
+    FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND cluster_id=#{clusterId}
+    ORDER BY reported_at DESC,source_id DESC
+    LIMIT #{limit} OFFSET #{offset}
+  </select>
+
+  <select id="findApplicationDimensions" resultType="com.feedback.model.po.problem.analysis.ProblemDimensionPo">
+    SELECT cluster_id,application_name dimension_value,COUNT(*) count
+    FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND cluster_id IN
+    <foreach collection="clusterIds" item="value" open="(" separator="," close=")">#{value}</foreach>
+      AND NULLIF(application_name,'') IS NOT NULL
+    GROUP BY cluster_id,application_name
+    ORDER BY cluster_id,count DESC,application_name
+  </select>
+
+  <select id="findRegionDimensions" resultType="com.feedback.model.po.problem.analysis.ProblemDimensionPo">
+    SELECT cluster_id,region_value dimension_value,COUNT(*) count
+    FROM t_phase_one_feedback_cluster_member_projection
+    WHERE <include refid="filters"/> AND cluster_id IN
+    <foreach collection="clusterIds" item="value" open="(" separator="," close=")">#{value}</foreach>
+      AND NULLIF(region_value,'') IS NOT NULL
+    GROUP BY cluster_id,region_value
+    ORDER BY cluster_id,count DESC,region_value
+  </select>
+
+  <select id="findRepresentatives" resultType="com.feedback.model.po.problem.analysis.ClusterRepresentativePo">
+    <!-- 每簇按 reported_at DESC、source_id DESC 稳定选择一条代表反馈；正文仍由安全投影批量加载。 -->
+    SELECT cluster_id,source_id FROM (
+      SELECT cluster_id,source_id,
+             ROW_NUMBER() OVER(PARTITION BY cluster_id ORDER BY reported_at DESC,source_id DESC) AS rn
+      FROM t_phase_one_feedback_cluster_member_projection
+      WHERE <include refid="filters"/> AND cluster_id IN
+      <foreach collection="clusterIds" item="value" open="(" separator="," close=")">#{value}</foreach>
+    ) ranked
+    WHERE rn=1
+    ORDER BY cluster_id
+  </select>
+</mapper>
+

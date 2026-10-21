@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.detail.FeedbackDetailAiMapper">
+    <select id="findBySourceId" resultType="com.feedback.model.po.feedback.detail.FeedbackDetailAiPo">
+        SELECT source_id, ai_summary, ai_application, ai_function_module, ai_category, ai_sentiment,
+               ai_risk_type, recommended_team, data_sources, ai_severity, ai_confidence, ai_explanation,
+               ai_model_version, ai_processed_at, classification_prompt_version, review_status
+        FROM t_feedback_ai
+        WHERE source_id = #{sourceId}
+    </select>
+</mapper>
+

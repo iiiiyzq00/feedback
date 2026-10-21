@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.station.online.StationOnlineIdentityMapper">
+    <insert id="insertIgnore">
+        INSERT IGNORE INTO t_feedback_identity(source_id,identity_type,identity_scope,fingerprint,fingerprint_key_id,
+          contact_ciphertext,contact_nonce,contact_tag,contact_key_id,contact_algorithm,contact_authorization_basis,
+          consented_at,expires_at)
+        VALUES(#{sourceId},#{identityType},#{identityScope},#{fingerprint},#{fingerprintKeyId},#{contactCiphertext},
+          #{contactNonce},#{contactTag},#{contactKeyId},#{contactAlgorithm},#{contactAuthorizationBasis},#{consentedAt},#{expiresAt})
+    </insert>
+</mapper>
+

@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthSsoLoginCodeMapper">
+  <!-- 飞书回调只把短码明文交给浏览器，数据库保存其摘要和会话建立上下文。 -->
+  <insert id="insert">
+    INSERT INTO t_auth_sso_login_code (
+      code_hash,
+      user_id,
+      return_path,
+      expires_at
+    ) VALUES (
+      #{codeHash},
+      #{userId},
+      #{returnPath},
+      DATE_ADD(NOW(3), INTERVAL #{ttlSeconds} SECOND)
+    )
+  </insert>
+
+  <!-- FOR UPDATE 与条件 consume 保证同一个短码最多建立一次正式 Cookie 会话。 -->
+  <select id="lockUsable" resultType="com.feedback.model.po.auth.AuthSsoLoginCodeReadPo">
+    SELECT
+      user_id,
+      return_path
+    FROM t_auth_sso_login_code
+    WHERE code_hash = #{codeHash}
+      AND consumed_at IS NULL
+      AND expires_at &gt; NOW(3)
+    FOR UPDATE
+  </select>
+
+  <update id="consume">
+    UPDATE t_auth_sso_login_code
+    SET consumed_at = NOW(3)
+    WHERE code_hash = #{codeHash}
+      AND consumed_at IS NULL
+  </update>
+</mapper>

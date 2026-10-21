@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListContentFactsMapper">
+    <select id="findBySourceIds" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListContentFactsPo">
+        SELECT source_id,title,description,function_module,problem_type,issue_category,severity_level,user_sentiment,
+               reproducibility,processing_status,masking_status,is_deleted AS deleted,updated_at
+        FROM t_feedback_content WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+    </select>
+</mapper>
+

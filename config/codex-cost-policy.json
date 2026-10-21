@@ -1,0 +1,22 @@
+{
+  "description": "Local Codex usage targets. Token budgets are reporting thresholds, not provider billing prices.",
+  "thresholds": {
+    "min_cache_hit_percent": 93,
+    "max_over_100k_call_percent": 15,
+    "max_over_200k_call_percent": 2,
+    "max_input_tokens": 120000000,
+    "max_uncached_input_tokens": 12000000
+  },
+  "operating_limits": {
+    "soft_compaction_input_tokens": 60000,
+    "hard_handoff_input_tokens": 100000,
+    "max_tool_calls_before_compaction": 12,
+    "max_failed_approaches_before_replan": 2,
+    "max_conversation_output_lines": 200
+  },
+  "pricing": {
+    "status": "UNVERIFIED_CUSTOM_PROVIDER",
+    "provider": "aihub-transit",
+    "note": "Do not estimate currency cost until cached input, cache write, reasoning, retry, and cancellation rates are confirmed."
+  }
+}

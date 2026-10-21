@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.detail.FeedbackDetailClusterLinkMapper">
+    <!-- 异常存在多个活动 MAIN 时，以最新 ID 作为当前摘要；不在 SQL 中连接问题簇表。 -->
+    <select id="findActiveMain" resultType="com.feedback.model.po.feedback.detail.FeedbackClusterLinkSummaryPo">
+        SELECT id, cluster_id, match_similarity, decision_reason, decision_version
+        FROM t_cluster_link
+        WHERE feedback_source_id = #{sourceId} AND is_active = TRUE AND relation_role = 'MAIN'
+        ORDER BY id DESC LIMIT 1
+    </select>
+    <!-- 返回单反馈完整归簇历史并稳定排序；事件组装和字段策略在应用层完成。 -->
+    <select id="findTimelineBySourceId" resultType="com.feedback.model.po.feedback.detail.FeedbackTimelineClusterLinkPo">
+        SELECT id, cluster_id, created_at, review_status, decision_reason, decision_version, match_similarity
+        FROM t_cluster_link
+        WHERE feedback_source_id = #{sourceId}
+        ORDER BY created_at, id
+    </select>
+</mapper>
+

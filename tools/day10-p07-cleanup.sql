@@ -1,0 +1,16 @@
+CREATE TEMPORARY TABLE d10p07_ids(id BIGINT PRIMARY KEY);
+INSERT INTO d10p07_ids SELECT id FROM t_feedback_source WHERE source_record_id LIKE 'D10P07-20260730A%';
+DELETE h FROM t_system_audit_log h JOIN d10p07_ids p ON h.operation='FIELD_CONVERSION' AND h.target_type='FEEDBACK' AND h.target_id=CAST(p.id AS CHAR);
+DELETE t FROM t_ai_task t JOIN d10p07_ids p ON p.id=t.source_id;
+DELETE l FROM t_cluster_link l JOIN d10p07_ids p ON p.id=l.feedback_source_id;
+DELETE a FROM t_feedback_ai a JOIN d10p07_ids p ON p.id=a.source_id;
+DELETE c FROM t_channel_jira c JOIN d10p07_ids p ON p.id=c.source_id;
+DELETE c FROM t_channel_quality c JOIN d10p07_ids p ON p.id=c.source_id;
+DELETE c FROM t_channel_redblack c JOIN d10p07_ids p ON p.id=c.source_id;
+DELETE i FROM t_feedback_identity i JOIN d10p07_ids p ON p.id=i.source_id;
+DELETE c FROM t_feedback_content c JOIN d10p07_ids p ON p.id=c.source_id;
+DELETE s FROM t_feedback_source s JOIN d10p07_ids p ON p.id=s.id;
+DROP TEMPORARY TABLE d10p07_ids;
+DELETE FROM t_import_batch WHERE batch_id LIKE 'D10P07-20260730A%';
+DELETE FROM t_cluster WHERE cluster_name='D10P07-20260730A-CLUSTER';
+SELECT COUNT(*) remaining FROM t_feedback_source WHERE source_record_id LIKE 'D10P07-20260730A%';

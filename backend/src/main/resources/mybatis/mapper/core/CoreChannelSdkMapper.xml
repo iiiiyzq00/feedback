@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.core.CoreChannelSdkMapper">
+  <sql id="columns">source_id,client_feedback_id,app_id,package_name,os_version,network_type,device_model,
+    screen_orientation,app_session_id,trigger_type,input_methods,battery_level,storage_available_mb,integration_mode,
+    context_source,app_internal_logs,crash_stack,account_context,course_id,question_id,order_id,page_route,business_id,
+    api_request_summary,state_machine,custom_events,private_file_manifest,diagnostic_ciphertext,diagnostic_nonce,
+    diagnostic_tag,diagnostic_key_id,diagnostic_algorithm,diagnostic_types,created_at</sql>
+  <select id="findById" resultType="com.feedback.model.sdk.ChannelSdk">SELECT <include refid="columns"/>
+    FROM t_channel_sdk WHERE source_id=#{sourceId}</select>
+  <select id="findByIds" resultType="com.feedback.model.sdk.ChannelSdk">SELECT <include refid="columns"/>
+    FROM t_channel_sdk WHERE source_id IN <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    ORDER BY source_id</select>
+  <insert id="upsert">INSERT INTO t_channel_sdk(<include refid="columns"/>) VALUES(#{row.sourceId},#{row.clientFeedbackId},
+    #{row.appId},#{row.packageName},#{row.osVersion},#{row.networkType},#{row.deviceModel},#{row.screenOrientation},
+    #{row.appSessionId},#{row.triggerType},#{row.inputMethods},#{row.batteryLevel},#{row.storageAvailableMb},
+    #{row.integrationMode},#{row.contextSource},#{row.appInternalLogs},#{row.crashStack},CAST(#{row.accountContext} AS JSON),
+    #{row.courseId},#{row.questionId},#{row.orderId},#{row.pageRoute},#{row.businessId},#{row.apiRequestSummary},
+    CAST(#{row.stateMachine} AS JSON),CAST(#{row.customEvents} AS JSON),CAST(#{row.privateFileManifest} AS JSON),
+    #{row.diagnosticCiphertext},#{row.diagnosticNonce},#{row.diagnosticTag},#{row.diagnosticKeyId},
+    #{row.diagnosticAlgorithm},#{row.diagnosticTypes},#{row.createdAt}) ON DUPLICATE KEY UPDATE
+    client_feedback_id=VALUES(client_feedback_id),app_id=VALUES(app_id),package_name=VALUES(package_name),
+    os_version=VALUES(os_version),network_type=VALUES(network_type),device_model=VALUES(device_model),
+    screen_orientation=VALUES(screen_orientation),app_session_id=VALUES(app_session_id),trigger_type=VALUES(trigger_type),
+    input_methods=VALUES(input_methods),battery_level=VALUES(battery_level),storage_available_mb=VALUES(storage_available_mb),
+    integration_mode=VALUES(integration_mode),context_source=VALUES(context_source),app_internal_logs=VALUES(app_internal_logs),
+    crash_stack=VALUES(crash_stack),account_context=VALUES(account_context),course_id=VALUES(course_id),
+    question_id=VALUES(question_id),order_id=VALUES(order_id),page_route=VALUES(page_route),business_id=VALUES(business_id),
+    api_request_summary=VALUES(api_request_summary),state_machine=VALUES(state_machine),custom_events=VALUES(custom_events),
+    private_file_manifest=VALUES(private_file_manifest),diagnostic_ciphertext=VALUES(diagnostic_ciphertext),
+    diagnostic_nonce=VALUES(diagnostic_nonce),diagnostic_tag=VALUES(diagnostic_tag),diagnostic_key_id=VALUES(diagnostic_key_id),
+    diagnostic_algorithm=VALUES(diagnostic_algorithm),diagnostic_types=VALUES(diagnostic_types)</insert>
+</mapper>

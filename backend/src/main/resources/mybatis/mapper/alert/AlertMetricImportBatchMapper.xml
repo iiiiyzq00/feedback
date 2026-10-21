@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.AlertMetricImportBatchMapper">
+ <select id="maxChannelStale" resultType="double">SELECT COALESCE(MAX(stale),999999) FROM (SELECT TIMESTAMPDIFF(MINUTE,MAX(completed_at),NOW()) stale FROM t_import_batch WHERE source_channel IN ('JIRA','QUALITY','REDBLACK') AND batch_status IN ('COMPLETED','PARTIAL_SUCCESS') GROUP BY source_channel) x</select>
+ <select id="failed" resultType="double">SELECT COUNT(*) FROM t_import_batch WHERE batch_status='FAILED' AND updated_at&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="rowCount" resultType="double">SELECT COALESCE(SUM(total_rows),0) FROM t_import_batch WHERE completed_at&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="failureRate" resultType="double">SELECT COALESCE(100*SUM(failed_rows)/NULLIF(SUM(total_rows),0),0) FROM t_import_batch WHERE completed_at&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="qualityRows" resultType="double">SELECT COALESCE(SUM(quality_total_rows),0) FROM t_import_batch WHERE quality_calculated_at&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="qualityScore" resultType="double">SELECT COALESCE(100*SUM(quality_score*quality_total_rows)/NULLIF(SUM(quality_total_rows),0),100) FROM t_import_batch WHERE quality_calculated_at&gt;=DATE_SUB(NOW(),INTERVAL #{minutes} MINUTE)</select>
+ <select id="failedBetween" resultType="double">SELECT COALESCE(SUM(batch_status='FAILED'),0) FROM t_import_batch WHERE completed_at&gt;=#{start} AND completed_at&lt;#{end}</select>
+ <select id="rowsBetween" resultType="double">SELECT COALESCE(SUM(total_rows),0) FROM t_import_batch WHERE completed_at&gt;=#{start} AND completed_at&lt;#{end}</select>
+ <select id="failureBetween" resultType="double">SELECT COALESCE(100*SUM(failed_rows)/NULLIF(SUM(total_rows),0),0) FROM t_import_batch WHERE completed_at&gt;=#{start} AND completed_at&lt;#{end}</select>
+ <select id="qualityRowsBetween" resultType="double">SELECT COALESCE(SUM(quality_total_rows),0) FROM t_import_batch WHERE quality_calculated_at&gt;=#{start} AND quality_calculated_at&lt;#{end}</select>
+ <select id="qualityScoreBetween" resultType="double">SELECT COALESCE(100*SUM(quality_score*quality_total_rows)/NULLIF(SUM(quality_total_rows),0),100) FROM t_import_batch WHERE quality_calculated_at&gt;=#{start} AND quality_calculated_at&lt;#{end}</select>
+</mapper>

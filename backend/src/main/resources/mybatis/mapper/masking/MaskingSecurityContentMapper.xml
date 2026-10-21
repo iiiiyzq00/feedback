@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.masking.MaskingSecurityContentMapper">
+  <select id="isStationReviewable" resultType="int">SELECT COUNT(*) FROM t_feedback_content
+    WHERE source_id=#{sourceId} AND masking_status='REVIEW_NEEDED' AND is_deleted=0</select>
+  <update id="release">UPDATE t_feedback_content SET title=COALESCE(#{title},title),description=COALESCE(#{description},description),
+    masking_status='PASS',updated_at=NOW(3) WHERE source_id=#{sourceId} AND masking_status='REVIEW_NEEDED'</update>
+</mapper>

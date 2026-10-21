@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterShadowCandidateClusterMapper">
+  <insert id="insertAll">
+    INSERT INTO t_cluster_shadow_candidate_cluster(generation_id,cluster_key_hash,cluster_name_hash,member_count,
+      provisional_member_count,manual_member_count) VALUES
+    <foreach collection="rows" item="row" separator=",">
+      (#{row.generationId},#{row.clusterKeyHash},#{row.clusterNameHash},#{row.memberCount},#{row.provisionalMemberCount},#{row.manualMemberCount})
+    </foreach>
+  </insert>
+  <select id="findByGeneration" resultType="com.feedback.model.po.cluster.ClusterShadowCandidateClusterPo">
+    SELECT generation_id,cluster_key_hash,cluster_name_hash,member_count,provisional_member_count,manual_member_count
+    FROM t_cluster_shadow_candidate_cluster WHERE generation_id=#{generationId} ORDER BY cluster_key_hash
+  </select>
+</mapper>

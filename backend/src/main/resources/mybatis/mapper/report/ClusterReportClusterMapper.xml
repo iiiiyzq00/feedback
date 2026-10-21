@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ClusterReportClusterMapper">
+    <select id="find" resultType="com.feedback.model.po.report.ClusterReportClusterPo">
+        SELECT id, cluster_name AS name, canonical_symptom, function_module, issue_category,
+               cluster_status AS status, lifecycle_version, merged_into_cluster_id,
+               split_from_cluster_id, status_reason
+        FROM t_cluster WHERE id = #{id}
+    </select>
+</mapper>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.imports.ImportQualitySourceMapper">
+  <sql id="columns">id,source_channel,package_name,app_version</sql>
+  <select id="findByBatch" resultType="com.feedback.model.po.imports.ImportQualitySourcePo">SELECT <include refid="columns"/> FROM t_feedback_source WHERE import_batch_id=#{batchId}</select>
+  <select id="findByIds" resultType="com.feedback.model.po.imports.ImportQualitySourcePo">SELECT <include refid="columns"/> FROM t_feedback_source WHERE id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+</mapper>

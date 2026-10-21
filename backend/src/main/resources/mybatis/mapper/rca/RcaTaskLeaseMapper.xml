@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<!--
+  RCA 父任务的租约语句。
+
+  这份文件是「generation fencing」这条设计的落点：条件里出现的每个字段，
+  都对应一个具体的竞态。改动 WHERE 子句之前请先确认被去掉的那个条件
+  不是为了好看——`lease_owner` 与 `lease_generation` 单独用都不够：
+
+    · 只匹配 id        → 任何 Worker 都能写任何任务
+    · 只匹配 id+owner  → owner 复用（进程重启后同名、容器名相同）时旧写回被放行（ABA）
+    · 加 generation    → 旧代数的写回影响行数为 0
+
+  所有时间都用 SQL 的 NOW(3) 而不是入参：租约的先后顺序必须由数据库这一个时钟裁定，
+  否则「谁先过期」会因为 Worker 之间、Worker 与数据库之间的漂移而不可判定。
+-->
+<mapper namespace="com.feedback.mapper.rca.RcaTaskLeaseMapper">
+
+  <sql id="columns">id,task_key,episode_id,task_status,current_node,state_version,lease_owner,
+    lease_generation,state_snapshot,snapshot_sha256,attempt_count,max_attempts,trace_id,steps_used,
+    tokens_used,cost_used_usd</sql>
+
+  <!--
+    候选：可领取、租约已不在有效期内、还有尝试次数。锁用 SKIP LOCKED 而不是等待：
+    等待会把「多个 Worker 抢同一个任务」变成「所有 Worker 串行」，吞吐随 Worker 数下降。
+
+    **RUNNING 必须在候选状态里**。这一条是崩溃恢复成立与否的分水岭：
+    Worker 进程被杀时不会执行任何让出语句，行就停在 RUNNING 上；
+    只挑 PENDING / RETRY_PENDING 的话，这类任务永远不会再被任何人选中，
+    而它既不是终态、也不会出现在任何「待处理」看板里——等于静默丢失。
+    判据因此不是「状态是不是待处理」，而是「租约是不是已经不在有效期内」：
+    租约过期这件事本身就说明上一个持有者已经不在了（它要么死了，要么卡住了），
+    此时状态是 RUNNING 还是 RETRY_PENDING 只是它离开时的姿势，不影响能不能接管。
+
+    超期任务（deadline_at 已过）**仍然在这里被选中**，这是刻意的。超期要的不是再跑一遍，
+    而是收口成终态；而收口只有持租约的人做得了——`abandon` 的条件是 owner + generation，
+    把一个超期任务排除在候选之外，等于让它既不被执行也不被收口，
+    永远停在 PENDING/RETRY_PENDING 上：既不是终态，也不会出现在任何「待处理」看板里。
+    代价是每个超期任务会被一个 Worker 领一次（条件更新决定只有一个赢家），
+    收益是它的归宿是确定的。判断交给 Worker：领取后先看 deadline_remaining_ms。
+  -->
+  <select id="lockClaimCandidate" resultType="com.feedback.model.po.rca.RcaAgentTaskPo">
+    SELECT <include refid="columns"/>,
+      GREATEST(0,TIMESTAMPDIFF(MICROSECOND,NOW(3),IFNULL(lease_until,NOW(3)))/1000) AS lease_remaining_ms,
+      TIMESTAMPDIFF(MICROSECOND,NOW(3),deadline_at)/1000 AS deadline_remaining_ms
+    FROM t_rca_agent_task
+    WHERE task_status IN ('PENDING','RUNNING','RETRY_PENDING')
+      AND (lease_until IS NULL OR lease_until &lt; NOW(3))
+      AND attempt_count &lt; max_attempts
+    ORDER BY id
+    LIMIT 1
+    FOR UPDATE SKIP LOCKED
+  </select>
+
+  <!--
+    条件领取。加锁之后仍要重复一遍候选条件：锁只覆盖「读到写」这段时间，
+    而这条 UPDATE 可能与另一个事务的终态写入交错，重复条件是唯一能把检查与写入绑在一起的手段。
+
+    lease_generation+1 是本语句唯一一处不幂等的写法，它必须如此：
+    「本次领取」这件事本身就要在世界上留下一个不可复用的标记。
+
+    deadline_at 在这次领取时补上，且只补一次（IFNULL）：写入侧此前一处都没有——
+    insertRcaTask 只写四个列，于是这一列恒为 NULL，候选条件里的
+    (deadline_at IS NULL OR deadline_at > NOW(3)) 恒真，app.rca.task-timeout-minutes 不生效。
+    为什么是领取时刻而不是入库时刻：从入库时刻起算会让「入库超过 30 分钟后才被领取」的任务
+    一创建就已超期，从此永久不可收口；领取时刻起算的口径是「一个任务从被领取到收口之间
+    允许消耗的墙钟」。为什么整条语句里 NOW(3) 只出现一次：租约与截止时间必须由同一个
+    时钟读数推出，两次读数会让「租约到期了但截止时间还没到」这类判断变得依赖执行顺序。
+
+    IFNULL 而不是直接赋值：这个 30 分钟是**整个任务**（跨多次领取、跨多次重试）的上限，
+    不是每次领取的配额。直接赋值会让一个反复崩溃的任务每次被领取都续出一个新的 30 分钟，
+    于是「任务超时」这个约束的实际上限取决于它崩溃了多少次。
+
+    trace_id 与 deadline_at 是同一个形状、同一个理由：领取时补、且只补一次（IFNULL）。
+    一个任务崩溃三次被领取三次，是**一条** trace——「这个任务重试过几次、每次死在哪一步」
+    正是排障时要看的东西，每次领取换一个标识会把它散成三条互不相关的记录。
+    由 SQL 生成而不是由 Worker 生成，是为了让标识在领取成功的那一刻就存在：
+    即使 Worker 拿到任务后立刻活动，库里也已经有一行带着标识的任务了。
+    用 REPLACE(UUID(),'-','') 而不是 UUID()：UUID() 带连字符（36 字符），
+    去掉之后恰好是 32 位小写十六进制，与 W3C Trace Context 的 trace-id 同宽，
+    将来接任何链路追踪后端都不需要再做一次转换。chk_rca_agent_trace 盯着这个格式。
+  -->
+  <update id="claim">
+    UPDATE t_rca_agent_task SET
+      task_status='RUNNING',
+      lease_owner=#{owner},
+      lease_generation=lease_generation+1,
+      lease_until=DATE_ADD(NOW(3),INTERVAL #{leaseSeconds} SECOND),
+      deadline_at=IFNULL(deadline_at,DATE_ADD(NOW(3),INTERVAL #{taskTimeoutMinutes} MINUTE)),
+      trace_id=IFNULL(trace_id,REPLACE(UUID(),'-','')),
+      attempt_count=attempt_count+1,
+      started_at=IFNULL(started_at,NOW(3)),
+      updated_at=NOW(3)
+    WHERE id=#{id}
+      AND task_status IN ('PENDING','RUNNING','RETRY_PENDING')
+      AND (lease_until IS NULL OR lease_until &lt; NOW(3))
+      AND attempt_count &lt; max_attempts
+  </update>
+
+  <!--
+    按 (id,owner) 读回本次领取结果。owner 是本次运行唯一的随机标识，因此只会命中自己刚写的行；
+    按 generation 查就会陷入循环依赖——查它之前得先知道它是多少。
+
+    这里读回的 trace_id 是**库里已经定下来的那一个**，Worker 拿到什么就用什么，
+    绝不在内存里另生成一个：进程崩溃重启后新 Worker 会拿到与库里不同的标识，
+    同一次任务执行的记录就被劈成互不相关的两半——而那恰好是链路标识唯一要避免的事。
+
+    deadline_remaining_ms 与 lease_remaining_ms 有一处刻意的不对称：前者**保留符号**，
+    超期时为负数。理由是两个数的消费方式不同——租约剩余只被用来回答「我还有多少时间」，
+    负数与 0 在语义上没有区别，所以可以夹到 0；而截止时间剩余要回答的是
+    「这次执行还该不该开始」，负数正是那个「不该」的信号，夹到 0 就把它抹掉了。
+  -->
+  <select id="findClaimed" resultType="com.feedback.model.po.rca.RcaAgentTaskPo">
+    SELECT <include refid="columns"/>,
+      GREATEST(0,TIMESTAMPDIFF(MICROSECOND,NOW(3),IFNULL(lease_until,NOW(3)))/1000) AS lease_remaining_ms,
+      TIMESTAMPDIFF(MICROSECOND,NOW(3),deadline_at)/1000 AS deadline_remaining_ms
+    FROM t_rca_agent_task
+    WHERE id=#{id} AND lease_owner=#{owner}
+  </select>
+
+  <!--
+    续租。条件里没有 state_version：续租不基于任何状态，它只是「我还活着」的心跳。
+    把 state_version 放进来的话，节点执行期间状态推进过的任务会续租失败，
+    于是在完全没有并发争抢的情况下被判成租约丢失。
+  -->
+  <update id="renew">
+    UPDATE t_rca_agent_task SET
+      lease_until=DATE_ADD(NOW(3),INTERVAL #{leaseSeconds} SECOND),
+      updated_at=NOW(3)
+    WHERE id=#{id} AND lease_owner=#{owner} AND lease_generation=#{generation}
+      AND task_status='RUNNING'
+  </update>
+
+  <!--
+    状态写回：四重条件。写回成功即状态推进一版（state_version+1），
+    因此调用方可以据此自行推进令牌，不必回读。
+
+    completed_at 只在终态时写：中间节点写回把任务保持 RUNNING，
+    此时填 completed_at 会让「任务完成时间」这个指标把中间快照也算进去。
+
+    终态时清空 lease_owner：任务已收口，留着持有者会让「谁该负责」这个问题有一个过期答案。
+    非终态（RUNNING）时保留租约，Worker 接着往下跑。
+
+    steps_used / tokens_used / cost_used_usd 受 chk_rca_agent_budget 约束，
+    上界是表上的 budget_max_* 三列。这三列的默认值必须与 RcaBudgetPolicy.DEFAULT 保持一致：
+    两者不一致时这里会以「约束冲突」的形式失败，而现象看起来像并发写坏，很难归因。
+  -->
+  <update id="writeBack">
+    UPDATE t_rca_agent_task SET
+      current_node=#{currentNode},
+      task_status=#{taskStatus},
+      stop_reason=#{stopReason},
+      state_version=state_version+1,
+      state_snapshot=CAST(#{stateSnapshot} AS JSON),
+      snapshot_sha256=#{snapshotSha256},
+      steps_used=#{stepsUsed},
+      tokens_used=#{tokensUsed},
+      cost_used_usd=#{costUsedUsd},
+      lease_owner=IF(#{taskStatus}='RUNNING',lease_owner,NULL),
+      lease_until=IF(#{taskStatus}='RUNNING',lease_until,NULL),
+      completed_at=IF(#{taskStatus}='RUNNING',completed_at,NOW(3)),
+      updated_at=NOW(3)
+    WHERE id=#{id} AND lease_owner=#{owner} AND lease_generation=#{generation}
+      AND state_version=#{stateVersion}
+  </update>
+
+  <!--
+    让出任务等待重试。attempt_count 必须一起递增：
+    attempt 上限是「一个任务最多被尝试几次」的硬约束，只清租约而不计次，
+    会让一个必然失败的任务被无限重试，把队列拖成黑洞。
+    这里不写 next_retry_at 的退避——退避属于调度策略，由调用方按错误类型决定（见适配器）。
+  -->
+  <update id="releaseForRetry">
+    UPDATE t_rca_agent_task SET
+      task_status='RETRY_PENDING',
+      lease_owner=NULL,
+      lease_until=NULL,
+      error_code=#{errorCode},
+      error_detail=#{errorDetail},
+      updated_at=NOW(3)
+    WHERE id=#{id} AND lease_owner=#{owner} AND lease_generation=#{generation}
+  </update>
+
+  <!-- 收口到非正常终态。stop_reason 必填，与 chk_rca_agent_terminal 一致。 -->
+  <update id="abandon">
+    UPDATE t_rca_agent_task SET
+      task_status=#{taskStatus},
+      stop_reason=#{stopReason},
+      state_version=state_version+1,
+      lease_owner=NULL,
+      lease_until=NULL,
+      error_code=#{errorCode},
+      error_detail=#{errorDetail},
+      completed_at=NOW(3),
+      updated_at=NOW(3)
+    WHERE id=#{id} AND lease_owner=#{owner} AND lease_generation=#{generation}
+  </update>
+</mapper>

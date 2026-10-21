@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.knowledge.JiraKnowledgeDraftMapper">
+  <select id="findImportedSourceIds" resultType="long">SELECT source_feedback_id FROM t_ai_knowledge
+    WHERE knowledge_source='IMPORT' AND source_feedback_id IN
+    <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach></select>
+  <insert id="insert">INSERT IGNORE INTO t_ai_knowledge(public_id,knowledge_title,knowledge_content,knowledge_tags,
+    feature_module,issue_type,knowledge_source,source_feedback_id,candidate_fingerprint,candidate_score,
+    candidate_evidence,knowledge_status,created_by) VALUES(UUID_TO_BIN(UUID()),#{row.title},#{row.contentJson},
+    CAST(#{row.tagsJson} AS JSON),#{row.module},#{row.issueType},'IMPORT',#{row.sourceId},#{row.fingerprint},#{row.score},
+    CAST(#{row.evidenceJson} AS JSON),'DRAFT',#{row.actor})</insert>
+</mapper>

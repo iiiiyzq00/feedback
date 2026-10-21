@@ -1,0 +1,2 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd"><mapper namespace="com.feedback.mapper.alert.ExternalSecurityIncidentMapper"><insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_incident(public_id,incident_title,incident_status,incident_severity) VALUES(UNHEX(REPLACE(UUID(),'-','')),#{row.title},'OPEN','P0')</insert></mapper>

@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.station.legacy.StationLegacyContentMapper">
+    <select id="findBySourceIds" resultType="com.feedback.model.po.station.legacy.StationLegacyContentPo">
+        SELECT source_id,title,description,problem_type,mapping_rule_version,normalization_version,processing_status,
+          masking_status,created_at,updated_at FROM t_feedback_content WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">
+            #{sourceId}
+        </foreach>
+    </select>
+    <insert id="insert">
+        INSERT INTO t_feedback_content(source_id,title,description,problem_type,mapping_rule_version,
+          normalization_version,processing_status,masking_status,created_at,updated_at)
+        VALUES(#{sourceId},#{title},#{description},#{problemType},#{mappingRuleVersion},#{normalizationVersion},
+          #{processingStatus},#{maskingStatus},#{createdAt},#{updatedAt})
+    </insert>
+</mapper>

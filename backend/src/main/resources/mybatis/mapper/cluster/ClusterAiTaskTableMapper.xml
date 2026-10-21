@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.cluster.ClusterAiTaskTableMapper">
+    <select id="findPendingSourceIds" resultType="long">
+        SELECT DISTINCT source_id FROM t_ai_task
+        WHERE source_id IN
+        <foreach collection="sourceIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+          AND record_type = 'INVOCATION' AND skill_code = 'cluster_assisted_decision'
+          AND (task_status IN ('PENDING','RETRY_PENDING') OR
+            (task_status = 'PROCESSING' AND lease_expires_at &gt; NOW(3)))
+        ORDER BY source_id
+    </select>
+    <select id="findDecisionByTaskKey" resultType="com.feedback.model.po.cluster.ClusterAiDecisionTaskPo">
+        SELECT id, task_status, input_snapshot, output_snapshot, lease_holder
+        FROM t_ai_task
+        WHERE task_key = #{taskKey} AND record_type = 'INVOCATION'
+          AND skill_code = 'cluster_assisted_decision'
+        ORDER BY id LIMIT 1
+    </select>
+    <insert id="insertDecision">
+        INSERT IGNORE INTO t_ai_task(record_type, skill_code, prompt_version, skill_version_snapshot,
+          prompt_sha256_snapshot, model_config_snapshot, source_id, task_key, task_status, input_snapshot,
+          snapshot_retention_until, max_retries)
+        VALUES('INVOCATION', 'cluster_assisted_decision', #{row.promptVersion}, #{row.skillVersion},
+          #{row.promptSha256}, JSON_OBJECT(), #{row.sourceId}, #{row.taskKey}, 'PENDING',
+          CAST(#{row.inputSnapshot} AS JSON), DATE_ADD(NOW(3), INTERVAL 30 DAY), #{row.maxRetries})
+    </insert>
+    <update id="recoverExpiredDecisions">
+        UPDATE t_ai_task SET retry_count = retry_count + 1,
+          task_status = IF(retry_count &gt;= max_retries, 'FAILED', 'RETRY_PENDING'),
+          next_retry_at = IF(retry_count &gt;= max_retries, NULL, NOW(3)),
+          lease_holder = NULL, lease_expires_at = NULL, error_detail = 'CLUSTER_AI_LEASE_EXPIRED',
+          completed_at = IF(retry_count &gt;= max_retries, NOW(3), NULL)
+        WHERE record_type = 'INVOCATION' AND skill_code = 'cluster_assisted_decision'
+          AND task_status = 'PROCESSING' AND (lease_expires_at IS NULL OR lease_expires_at &lt;= NOW(3))
+    </update>
+    <select id="findDueDecisionIds" resultType="long">
+        SELECT id FROM t_ai_task
+        WHERE record_type = 'INVOCATION' AND skill_code = 'cluster_assisted_decision'
+          AND task_status IN ('PENDING','RETRY_PENDING')
+          AND (next_retry_at IS NULL OR next_retry_at &lt;= NOW(3))
+        ORDER BY id LIMIT #{limit}
+    </select>
+    <update id="claimDecision">
+        UPDATE t_ai_task SET task_status = 'PROCESSING', lease_holder = #{holder},
+          lease_expires_at = DATE_ADD(NOW(3), INTERVAL 3 MINUTE)
+        WHERE id = #{id} AND record_type = 'INVOCATION' AND skill_code = 'cluster_assisted_decision'
+          AND task_status IN ('PENDING','RETRY_PENDING')
+    </update>
+    <select id="findDecisionById" resultType="com.feedback.model.po.cluster.ClusterAiDecisionTaskPo">
+        SELECT id, task_status, input_snapshot, output_snapshot, lease_holder
+        FROM t_ai_task WHERE id = #{id} AND record_type = 'INVOCATION'
+          AND skill_code = 'cluster_assisted_decision'
+    </select>
+    <update id="completeDecision">
+        UPDATE t_ai_task SET task_status = 'COMPLETED', output_snapshot = CAST(#{row.outputSnapshot} AS JSON),
+          model_name_snapshot = #{row.modelName}, provider_request_id = #{row.providerRequestId},
+          input_tokens = #{row.inputTokens}, output_tokens = #{row.outputTokens}, latency_ms = #{row.latencyMs},
+          estimated_cost_usd = #{row.estimatedCostUsd}, lease_holder = NULL, lease_expires_at = NULL,
+          completed_at = NOW(3), error_detail = NULL
+        WHERE id = #{row.id} AND lease_holder = #{row.holder} AND task_status = 'PROCESSING'
+    </update>
+    <update id="failDecision">
+        UPDATE t_ai_task SET retry_count = retry_count + 1,
+          task_status = IF(retry_count &gt;= max_retries, 'FAILED', 'RETRY_PENDING'),
+          next_retry_at = IF(retry_count &gt;= max_retries, NULL,
+            DATE_ADD(NOW(3), INTERVAL POW(2,retry_count) MINUTE)),
+          lease_holder = NULL, lease_expires_at = NULL, error_detail = #{errorDetail},
+          completed_at = IF(retry_count &gt;= max_retries, NOW(3), NULL)
+        WHERE id = #{id} AND lease_holder = #{holder} AND task_status = 'PROCESSING'
+    </update>
+    <insert id="insertEvaluation">
+        INSERT INTO t_ai_task(record_type, task_key, task_status, input_snapshot, output_snapshot,
+          snapshot_retention_until, user_id, model_name_snapshot, completed_at)
+        VALUES('CLUSTER_EVALUATION', #{row.taskKey}, #{row.taskStatus}, CAST(#{row.inputSnapshot} AS JSON),
+          CAST(#{row.outputSnapshot} AS JSON), DATE_ADD(NOW(3), INTERVAL 365 DAY), #{row.actor},
+          #{row.model}, NOW(3))
+    </insert>
+    <select id="findLatestEvaluation" resultType="com.feedback.model.po.cluster.ClusterEvaluationPo">
+        SELECT id, task_status, model_name_snapshot, output_snapshot, completed_at
+        FROM t_ai_task WHERE record_type = 'CLUSTER_EVALUATION'
+        ORDER BY completed_at DESC, id DESC LIMIT 1
+    </select>
+</mapper>
+

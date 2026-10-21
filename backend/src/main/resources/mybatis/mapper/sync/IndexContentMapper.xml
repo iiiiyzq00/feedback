@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.sync.IndexContentMapper">
+  <sql id="columns">source_id,title,description,function_module,masking_status,is_deleted,updated_at</sql>
+  <select id="findByIds" resultType="com.feedback.model.po.sync.IndexContentPo">SELECT <include refid="columns"/>
+    FROM t_feedback_content WHERE source_id IN <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    ORDER BY source_id</select>
+  <select id="findById" resultType="com.feedback.model.po.sync.IndexContentPo">SELECT <include refid="columns"/>
+    FROM t_feedback_content WHERE source_id=#{id}</select>
+</mapper>

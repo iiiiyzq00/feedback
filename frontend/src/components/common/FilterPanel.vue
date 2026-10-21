@@ -1,0 +1,3 @@
+<template><section class="filter-panel" aria-label="筛选条件"><div class="filter-content"><slot/></div><div v-if="$slots.actions" class="filter-actions"><slot name="actions"/></div></section></template>
+<style scoped>.filter-panel{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;padding:14px 16px;margin-bottom:16px;background:#fff;border:1px solid rgba(214,223,235,.85);border-radius:var(--radius-card);box-shadow:0 4px 14px rgba(27,54,93,.04)}.filter-content,.filter-actions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.filter-content{min-width:0;flex:1}.filter-actions{justify-content:flex-end}@media(max-width:900px){.filter-panel{align-items:stretch;flex-direction:column}.filter-actions{justify-content:flex-start}}</style>
+

@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthUserRoleMapper">
+  <!-- 登录主体只装配尚未过期的角色；管理查询可读取包括已过期记录在内的完整关联。 -->
+  <select id="findActiveByUserId" resultType="com.feedback.model.po.auth.AuthUserRolePo">
+    SELECT
+      user_id,
+      role_code,
+      expires_at
+    FROM t_auth_user_role
+    WHERE user_id = #{userId}
+      AND (expires_at IS NULL OR expires_at &gt; NOW())
+    ORDER BY role_code
+  </select>
+
+  <select id="findByUserId" resultType="com.feedback.model.po.auth.AuthUserRolePo">
+    SELECT
+      user_id,
+      role_code,
+      expires_at
+    FROM t_auth_user_role
+    WHERE user_id = #{userId}
+    ORDER BY role_code
+  </select>
+
+  <select id="findByUserIds" resultType="com.feedback.model.po.auth.AuthUserRolePo">
+    SELECT
+      user_id,
+      role_code,
+      expires_at
+    FROM t_auth_user_role
+    WHERE user_id IN
+      <foreach collection="userIds" item="id" open="(" separator="," close=")">
+        #{id}
+      </foreach>
+    ORDER BY user_id, role_code
+  </select>
+
+  <!-- 最后管理员保护只读取聚合计数，不再扫描全部启用用户和角色 ID。 -->
+  <select id="countActiveUsersByRoleCode" resultType="long">
+    SELECT COUNT(DISTINCT user_role.user_id)
+    FROM t_auth_user_role AS user_role
+    INNER JOIN t_auth_user AS auth_user
+      ON auth_user.id = user_role.user_id
+    WHERE user_role.role_code = #{roleCode}
+      AND auth_user.is_active = 1
+      AND (user_role.expires_at IS NULL OR user_role.expires_at &gt; NOW())
+  </select>
+
+  <!-- insert 保留授权人用于审计；insertIgnore 用于 SSO 首次登录时幂等授予最小 USER 角色。 -->
+  <insert id="insert">
+    INSERT INTO t_auth_user_role (
+      user_id,
+      role_code,
+      assigned_by
+    ) VALUES (
+      #{userId},
+      #{roleCode},
+      #{assignedBy}
+    )
+  </insert>
+
+  <insert id="insertIgnore">
+    INSERT IGNORE INTO t_auth_user_role (
+      user_id,
+      role_code
+    ) VALUES (
+      #{userId},
+      #{roleCode}
+    )
+  </insert>
+
+  <delete id="deleteByUserId">
+    DELETE FROM t_auth_user_role
+    WHERE user_id = #{userId}
+  </delete>
+</mapper>

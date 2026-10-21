@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.listprojection.FeedbackListStationFactsMapper">
+    <select id="findBySourceIds" resultType="com.feedback.model.po.feedback.listprojection.FeedbackListStationFactsPo">
+        SELECT source_id,source_api_version,product_id,source_product_name,source_app_id,source_app_name,
+               source_platform,source_feedback_type,source_sub_channel,source_description,attribute_schema_version,
+               attribute_mapping_status,contact_status,ingest_status,processing_stage,retry_count,processed_at,
+               created_at,source_user_id IS NOT NULL AND source_user_id&lt;&gt;'' AS has_source_user_id,
+               authenticated_user_id IS NOT NULL AND authenticated_user_id&lt;&gt;'' AS has_authenticated_user_id
+        FROM t_channel_station_feedback WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">#{sourceId}</foreach>
+    </select>
+</mapper>
+

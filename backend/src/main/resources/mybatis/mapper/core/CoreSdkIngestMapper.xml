@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.core.CoreSdkIngestMapper">
+  <sql id="columns">id,receipt_id,client_feedback_id,app_id,app_version,package_name,function_module,issue_type,
+    source_event_time,os_version,network_type,trigger_type,encrypted_data_key,payload_nonce,payload_ciphertext,payload_tag,
+    contact_nonce,contact_ciphertext,contact_tag,contact_allowed,body_processing_status,contact_processing_status,
+    urgency_class,key_id,algorithm_version,schema_version,request_sha256,request_size_bytes,ingest_status,
+    disposition_status,retry_count,next_retry_at,last_error_code,last_error_detail,feedback_source_id,ciphertext_deleted_at,
+    retention_until,received_at,processed_at</sql>
+  <select id="findById" resultType="com.feedback.model.sdk.SdkIngest">SELECT <include refid="columns"/>
+    FROM t_sdk_ingest WHERE id=#{id}</select>
+  <select id="findByBusinessKey" resultType="com.feedback.model.sdk.SdkIngest">SELECT <include refid="columns"/>
+    FROM t_sdk_ingest WHERE app_id=#{appId} AND client_feedback_id=#{clientFeedbackId} ORDER BY id DESC LIMIT 1</select>
+  <select id="findByReceiptId" resultType="com.feedback.model.sdk.SdkIngest">SELECT <include refid="columns"/>
+    FROM t_sdk_ingest WHERE receipt_id=#{receiptId} ORDER BY id DESC LIMIT 1</select>
+  <select id="findPending" resultType="com.feedback.model.sdk.SdkIngest">SELECT <include refid="columns"/>
+    FROM t_sdk_ingest WHERE ingest_status IN ('RECEIVED','RETRY_PENDING')
+    AND (next_retry_at IS NULL OR next_retry_at&lt;=CURRENT_TIMESTAMP) ORDER BY urgency_class DESC,received_at,id</select>
+  <insert id="insert" useGeneratedKeys="true" keyProperty="row.id">INSERT INTO t_sdk_ingest(receipt_id,client_feedback_id,
+    app_id,app_version,package_name,function_module,issue_type,source_event_time,os_version,network_type,trigger_type,
+    encrypted_data_key,payload_nonce,payload_ciphertext,payload_tag,contact_nonce,contact_ciphertext,contact_tag,
+    contact_allowed,body_processing_status,contact_processing_status,urgency_class,key_id,algorithm_version,schema_version,
+    request_sha256,request_size_bytes,ingest_status,disposition_status,retry_count,next_retry_at,last_error_code,
+    last_error_detail,feedback_source_id,ciphertext_deleted_at,retention_until,received_at,processed_at) VALUES(
+    #{row.receiptId},#{row.clientFeedbackId},#{row.appId},#{row.appVersion},#{row.packageName},#{row.functionModule},
+    #{row.issueType},#{row.sourceEventTime},#{row.osVersion},#{row.networkType},#{row.triggerType},#{row.encryptedDataKey},
+    #{row.payloadNonce},#{row.payloadCiphertext},#{row.payloadTag},#{row.contactNonce},#{row.contactCiphertext},
+    #{row.contactTag},#{row.contactAllowed},#{row.bodyProcessingStatus},#{row.contactProcessingStatus},#{row.urgencyClass},
+    #{row.keyId},#{row.algorithmVersion},#{row.schemaVersion},#{row.requestSha256},#{row.requestSizeBytes},#{row.ingestStatus},
+    #{row.dispositionStatus},#{row.retryCount},#{row.nextRetryAt},#{row.lastErrorCode},#{row.lastErrorDetail},
+    #{row.feedbackSourceId},#{row.ciphertextDeletedAt},#{row.retentionUntil},#{row.receivedAt},#{row.processedAt})</insert>
+  <update id="update">UPDATE t_sdk_ingest SET encrypted_data_key=#{row.encryptedDataKey},payload_nonce=#{row.payloadNonce},
+    payload_ciphertext=#{row.payloadCiphertext},payload_tag=#{row.payloadTag},contact_nonce=#{row.contactNonce},
+    contact_ciphertext=#{row.contactCiphertext},contact_tag=#{row.contactTag},body_processing_status=#{row.bodyProcessingStatus},
+    contact_processing_status=#{row.contactProcessingStatus},urgency_class=#{row.urgencyClass},ingest_status=#{row.ingestStatus},
+    disposition_status=#{row.dispositionStatus},retry_count=#{row.retryCount},next_retry_at=#{row.nextRetryAt},
+    last_error_code=#{row.lastErrorCode},last_error_detail=#{row.lastErrorDetail},feedback_source_id=#{row.feedbackSourceId},
+    ciphertext_deleted_at=#{row.ciphertextDeletedAt},retention_until=#{row.retentionUntil},processed_at=#{row.processedAt}
+    WHERE id=#{row.id}</update>
+</mapper>

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ReportTaskReportMapper">
+    <update id="attach">
+        UPDATE t_ai_report SET report_task_id = #{task}
+        WHERE id = #{report} AND report_task_id IS NULL
+    </update>
+</mapper>

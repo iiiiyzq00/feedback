@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.report.ClusterReportRcaMapper">
+    <select id="byIds" resultType="com.feedback.model.po.report.ClusterReportRcaPo">
+        SELECT id, incident_id, rca_title AS title, rca_type, trigger_type,
+               root_cause, solution, rca_status AS status, confidence, created_at
+        FROM t_root_cause_analysis WHERE id IN
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </select>
+</mapper>

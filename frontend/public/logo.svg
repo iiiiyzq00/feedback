@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" fill="none">
+  <defs>
+    <linearGradient id="logo-gradient" x1="3" y1="2" x2="29" y2="31" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#579CF5"/>
+      <stop offset="1" stop-color="#326FDD"/>
+    </linearGradient>
+  </defs>
+  <rect width="32" height="32" rx="8" fill="url(#logo-gradient)"/>
+  <!-- 学习机屏幕 -->
+  <rect x="7.5" y="6.5" width="17" height="19" rx="3.5" stroke="white" stroke-width="1.7"/>
+  <path d="M13.5 22.2h5" stroke="white" stroke-width="1.5" stroke-linecap="round" opacity=".82"/>
+  <!-- 反馈对话 -->
+  <path d="M12 11.2h8a2 2 0 0 1 2 2v2.6a2 2 0 0 1-2 2h-3.8l-2.7 2v-2H12a2 2 0 0 1-2-2v-2.6a2 2 0 0 1 2-2Z" fill="white"/>
+  <circle cx="13.2" cy="14.5" r=".8" fill="#3D7FE5"/>
+  <circle cx="16" cy="14.5" r=".8" fill="#3D7FE5"/>
+  <circle cx="18.8" cy="14.5" r=".8" fill="#3D7FE5"/>
+</svg>

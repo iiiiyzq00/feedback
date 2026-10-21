@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.station.legacy.StationLegacyRawPayloadMapper">
+    <select id="findExistingSourceIds" resultType="long">
+        SELECT source_id FROM t_station_feedback_raw WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">
+            #{sourceId}
+        </foreach>
+          AND deleted_at IS NULL
+    </select>
+</mapper>

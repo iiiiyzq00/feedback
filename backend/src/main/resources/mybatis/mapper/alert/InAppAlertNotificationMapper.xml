@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.alert.InAppAlertNotificationMapper">
+    <select id="page" resultType="com.feedback.model.po.alert.InAppAlertNotificationPo">
+        SELECT id,
+               alert_instance_id AS alert_instance_id,
+               report_id,
+               rule_code,
+               notify_content AS content,
+               event_type,
+               created_at,
+               sent_at AS delivered_at
+        FROM t_alert_notification
+        WHERE record_type = 'NOTIFICATION'
+          AND notify_channel = 'IN_APP'
+          AND notify_status = 'DELIVERED'
+          AND target_user_id = #{user}
+        <if test="before != null">AND id &lt; #{before}</if>
+        ORDER BY id DESC
+        LIMIT #{limit}
+    </select>
+
+    <select id="count" resultType="long">
+        SELECT COUNT(*)
+        FROM t_alert_notification
+        WHERE record_type = 'NOTIFICATION'
+          AND notify_channel = 'IN_APP'
+          AND notify_status = 'DELIVERED'
+          AND target_user_id = #{user}
+    </select>
+
+    <select id="visible" resultType="int">
+        SELECT COUNT(*)
+        FROM t_alert_notification
+        WHERE id = #{id}
+          AND record_type = 'NOTIFICATION'
+          AND notify_channel = 'IN_APP'
+          AND notify_status = 'DELIVERED'
+          AND target_user_id = #{user}
+    </select>
+
+    <select id="visibleAlertIds" resultType="long">
+        SELECT DISTINCT alert_instance_id
+        FROM t_alert_notification
+        WHERE record_type = 'NOTIFICATION'
+          AND notify_channel = 'IN_APP'
+          AND notify_status = 'DELIVERED'
+          AND target_user_id = #{user}
+          AND alert_instance_id IN
+          <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+          AND COALESCE(JSON_UNQUOTE(JSON_EXTRACT(notify_content, '$.eventType')), event_type, '')
+              IN ('ALERT_FIRED', 'ALERT_ESCALATION')
+    </select>
+</mapper>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthTenantMapper">
+  <!-- 可分配租户键。SUSPENDED 的租户**在读取时就排除**，而不是取出来再让上层判断：
+       停用租户的语义是「不得再分配」，把它挡在 SQL 里，任何新的调用点都不必记得这件事。
+
+       没有分页：这张表的量级是「一次部署里的租户数」，不是数据行数，加 LIMIT 只会让
+       「校验通过」与「列表完整」两个语义分叉。 -->
+  <select id="findActiveKeys" resultType="string">
+    SELECT tenant_key
+    FROM t_auth_tenant
+    WHERE lifecycle_status = 'ACTIVE'
+    ORDER BY tenant_key
+  </select>
+</mapper>

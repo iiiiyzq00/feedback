@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.feedback.diagnostics.FeedbackDiagnosticAttachmentMapper">
+  <!-- 只返回未删除日志的安全元数据；limit=201 是超限哨兵，正文和存储路径不进入该查询。 -->
+  <select id="findLogs" resultType="com.feedback.model.po.feedback.diagnostics.FeedbackDiagnosticAttachmentPo">
+    SELECT id,mime_type,file_size_bytes,source_attachment_id,security_status,integrity_status,
+           malware_scan_status,content_review_status
+    FROM t_feedback_attachment
+    WHERE source_id=#{sourceId} AND attachment_type='LOG' AND deleted_at IS NULL
+    ORDER BY created_at,id
+    LIMIT #{limit}
+  </select>
+</mapper>
+

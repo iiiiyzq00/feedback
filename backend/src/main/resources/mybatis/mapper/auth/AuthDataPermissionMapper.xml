@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.auth.AuthDataPermissionMapper">
+  <!-- 一次批量读取用户与角色的 READ 权限；limit + 1 由 Repository 用作完整性哨兵。 -->
+  <select id="findReadPermissions" resultType="com.feedback.model.po.auth.AuthDataPermissionPo">
+    SELECT
+      id,
+      subject_type,
+      subject_id,
+      scope_type,
+      scope_value,
+      access_level,
+      effect
+    FROM t_auth_data_permission
+    WHERE access_level = 'READ'
+      AND (
+        (subject_type = 'USER' AND subject_id = #{userId})
+        OR (
+          subject_type = 'ROLE'
+          AND subject_id IN
+          <foreach collection="roles" item="role" open="(" separator="," close=")">
+            #{role}
+          </foreach>
+        )
+      )
+    ORDER BY id
+    LIMIT #{limit}
+  </select>
+</mapper>

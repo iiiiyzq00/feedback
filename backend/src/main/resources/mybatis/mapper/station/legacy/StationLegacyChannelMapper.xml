@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.station.legacy.StationLegacyChannelMapper">
+    <sql id="columns">source_id,receipt_id,source_api_version,product_id,source_product_name,source_app_id,
+        source_app_name,source_user_id,authenticated_user_id,authenticated_product_code,source_platform,
+        source_feedback_type,source_sub_channel,source_description,pending_photo_urls,contact_status,ingest_status,
+        processing_stage,retry_count,max_retry_count,next_retry_at,lease_owner,lease_expires_at,last_error_code,
+        last_error_summary,request_fingerprint,processed_at,created_at,updated_at</sql>
+    <select id="findBySourceIdsForUpdate" resultType="com.feedback.model.po.station.legacy.StationLegacyChannelPo">
+        SELECT <include refid="columns"/> FROM t_channel_station_feedback WHERE source_id IN
+        <foreach collection="sourceIds" item="sourceId" open="(" separator="," close=")">
+            #{sourceId}
+        </foreach>
+        ORDER BY source_id FOR UPDATE
+    </select>
+    <select id="findRecoveryPageForUpdate" resultType="com.feedback.model.po.station.legacy.StationLegacyChannelPo">
+        SELECT <include refid="columns"/> FROM t_channel_station_feedback
+        WHERE source_id&gt;#{afterSourceId} AND ingest_status IN ('REVIEW_NEEDED','FAILED_FINAL')
+          AND (lease_expires_at IS NULL OR lease_expires_at&lt;NOW(3))
+        ORDER BY source_id LIMIT #{limit} FOR UPDATE SKIP LOCKED
+    </select>
+    <insert id="insert">
+        INSERT INTO t_channel_station_feedback(source_id,receipt_id,source_api_version,product_id,source_product_name,
+          source_app_id,source_app_name,source_user_id,authenticated_product_code,source_platform,source_feedback_type,
+          source_sub_channel,source_description,pending_photo_urls,contact_status,ingest_status,processing_stage,
+          retry_count,max_retry_count,next_retry_at,request_fingerprint,processed_at,created_at,updated_at)
+        VALUES(#{sourceId},#{receiptId},#{sourceApiVersion},#{productId},#{sourceProductName},#{sourceAppId},
+          #{sourceAppName},#{sourceUserId},#{authenticatedProductCode},#{sourcePlatform},#{sourceFeedbackType},
+          #{sourceSubChannel},#{sourceDescription},#{pendingPhotoUrls},#{contactStatus},#{ingestStatus},
+          #{processingStage},#{retryCount},#{maxRetryCount},#{nextRetryAt},#{requestFingerprint},#{processedAt},
+          #{createdAt},#{updatedAt})
+    </insert>
+    <update id="enrichMissing">
+        UPDATE t_channel_station_feedback SET
+          product_id=CASE WHEN product_id='UNKNOWN' THEN #{productId} ELSE product_id END,
+          source_product_name=COALESCE(NULLIF(source_product_name,''),#{sourceProductName}),
+          source_app_id=COALESCE(NULLIF(source_app_id,''),#{sourceAppId}),
+          source_app_name=COALESCE(NULLIF(source_app_name,''),#{sourceAppName}),
+          source_user_id=COALESCE(NULLIF(source_user_id,''),#{sourceUserId}),updated_at=NOW(3)
+        WHERE source_id=#{sourceId} AND (lease_expires_at IS NULL OR lease_expires_at&lt;NOW(3))
+    </update>
+    <update id="applyState">
+        UPDATE t_channel_station_feedback SET contact_status=#{contactStatus},pending_photo_urls=#{pendingPhotoUrls},
+          ingest_status=#{ingestStatus},processing_stage=#{processingStage},next_retry_at=#{nextRetryAt},retry_count=0,
+          lease_owner=NULL,lease_expires_at=NULL,last_error_code=#{lastErrorCode},last_error_summary=#{lastErrorSummary},
+          processed_at=#{processedAt},updated_at=NOW(3)
+        WHERE source_id=#{sourceId} AND ingest_status IN ('COMPLETED','REVIEW_NEEDED','FAILED_FINAL')
+          AND (lease_expires_at IS NULL OR lease_expires_at&lt;NOW(3))
+    </update>
+</mapper>

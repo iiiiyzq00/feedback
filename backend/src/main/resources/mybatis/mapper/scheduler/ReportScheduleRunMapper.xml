@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.feedback.mapper.scheduler.ReportScheduleRunMapper">
+    <insert id="insert" useGeneratedKeys="true" keyProperty="row.id" keyColumn="id">
+        INSERT INTO t_ai_task(
+            record_type, task_domain, task_key, task_status, input_snapshot, output_snapshot,
+            snapshot_retention_until, started_at, result_entity_type
+        ) VALUES(
+            'REPORT_SCHEDULE_RUN', 'REPORT', CONCAT('REPORT_SCHEDULE:', UUID()), 'RUNNING',
+            JSON_OBJECT('scheduleKey', #{row.key}, 'reportType', #{row.type},
+                        'periodStart', #{row.periodStart}, 'periodEnd', #{row.periodEnd}),
+            JSON_OBJECT('lockAcquired', 1), DATE_ADD(NOW(3), INTERVAL 365 DAY), NOW(3), 'AI_REPORT'
+        )
+    </insert>
+    <update id="succeeded">
+        UPDATE t_ai_task SET task_status = 'SUCCEEDED', result_entity_id = #{report},
+            output_snapshot = JSON_OBJECT('lockAcquired', 1, 'reportId', #{report}), completed_at = NOW(3)
+        WHERE id = #{id} AND record_type = 'REPORT_SCHEDULE_RUN' AND task_status = 'RUNNING'
+    </update>
+    <update id="skipped">
+        UPDATE t_ai_task SET task_status = 'SKIPPED_LOCK',
+            output_snapshot = JSON_OBJECT('lockAcquired', 0), completed_at = NOW(3)
+        WHERE id = #{id} AND record_type = 'REPORT_SCHEDULE_RUN' AND task_status = 'RUNNING'
+    </update>
+    <update id="failed">
+        UPDATE t_ai_task SET task_status = 'FAILED', error_code = #{code},
+            error_detail = #{message}, completed_at = NOW(3)
+        WHERE id = #{id} AND record_type = 'REPORT_SCHEDULE_RUN' AND task_status = 'RUNNING'
+    </update>
+</mapper>
